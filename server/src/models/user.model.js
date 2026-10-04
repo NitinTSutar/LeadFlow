@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema(
       index: true,
     },
     passwordHash: { type: String, required: true, select: false },
-    role: { type: String, enum: USER_ROLES, required: true, index: true },
+    role: { type: String, enum: USER_ROLES, required: true },
     brokerageId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Brokerage",
@@ -32,6 +32,8 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+userSchema.index({ role: 1 }, { unique: true, partialFilterExpression: { role: "platformAdmin" } });
 
 const User = mongoose.model("User", userSchema);
 

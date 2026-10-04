@@ -3,6 +3,8 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import { config } from "./config/env.js";
 import authRoutes from "./routes/auth.routes.js";
+import leadRoutes from "./routes/lead.routes.js";
+import devRoutes from "./routes/dev.routes.js";
 
 const app = express();
 
@@ -10,6 +12,8 @@ app.use(cors({ origin: config.frontendOrigin, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 app.use("/api/auth", authRoutes);
+app.use("/api/leads", leadRoutes);
+app.use("/api/dev", devRoutes);
 
 app.use((error, req, res, next) => {
   console.error(error);

@@ -8,6 +8,10 @@ export function normalizeEmail(email) {
   return typeof email === "string" ? email.trim().toLowerCase() : "";
 }
 
+export function hashPassword(password) {
+  return bcrypt.hash(password, 12);
+}
+
 export function toSafeUser(user) {
   return {
     id: user._id.toString(),

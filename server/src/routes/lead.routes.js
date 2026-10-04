@@ -1,0 +1,15 @@
+import { Router } from "express";
+import { create, detail, list, remove, update } from "../controllers/lead.controller.js";
+import { requireAuth } from "../middleware/auth.middleware.js";
+import { requireRole } from "../middleware/role.middleware.js";
+import { requireBrokerageContext } from "../middleware/tenant.middleware.js";
+
+const router = Router();
+router.use(requireAuth, requireBrokerageContext);
+router.get("/", list);
+router.get("/:id", detail);
+router.post("/", create);
+router.patch("/:id", update);
+router.delete("/:id", requireRole("brokerageAdmin", "platformAdmin"), remove);
+
+export default router;

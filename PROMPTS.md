@@ -428,6 +428,315 @@ Do not make any unrelated changes.
 
 ## Prompt 5
 
+Implement the Lead foundation for LeadFlow.
 
+Before making changes, inspect the existing backend structure, AGENTS.md, authentication middleware, User model, Brokerage model, and current API conventions. Preserve the existing architecture.
+
+## 1. Lead Model
+
+Create a Mongoose Lead model with the following fields:
+
+- brokerageId
+- firstName
+- lastName
+- email
+- phone
+- source
+- status
+- assignedAdvisorId
+- notes
+- createdAt
+- updatedAt
+
+Use appropriate validation, normalization, indexes, and references.
+
+Rules:
+
+- brokerageId is required and references Brokerage.
+- assignedAdvisorId references User and is optional.
+- email should be normalized consistently.
+- status must use a fixed set of pipeline statuses for the MVP:
+  - NEW
+  - CONTACTED
+  - QUALIFIED
+  - APPLICATION
+  - WON
+  - LOST
+- source should identify where the lead came from, such as "tally".
+- Add indexes that support common tenant-scoped queries.
+
+Do not make the pipeline dynamically configurable yet.
+
+## 2. Tenant Isolation
+
+All lead operations must be strictly scoped to the authenticated user's brokerage.
+
+Rules:
+
+- Never trust brokerageId from the request body, query parameters, or URL parameters.
+- For brokerage users, derive brokerageId exclusively from req.user.brokerageId.
+- platformAdmin may operate across brokerages.
+- A brokerage user must never be able to read, update, or delete another brokerage's lead by changing a lead ID.
+- Database queries must enforce tenant isolation, not just frontend filtering.
+
+Use the existing authentication and brokerage-context middleware where appropriate.
+
+## 3. Lead API
+
+Create the following endpoints:
+
+- GET /api/leads
+- GET /api/leads/:id
+- POST /api/leads
+- PATCH /api/leads/:id
+- DELETE /api/leads/:id
+
+All endpoints require authentication.
+
+For brokerage users, all operations must be restricted to their own brokerage.
+
+For platformAdmin, allow cross-brokerage access where appropriate, but do not weaken tenant isolation for normal brokerage users.
+
+## 4. Lead Creation
+
+POST /api/leads should accept:
+
+- firstName
+- lastName
+- email
+- phone
+- source
+- notes
+- assignedAdvisorId
+- status
+
+Do not accept brokerageId from the client.
+
+If status is omitted, default to NEW.
+
+If source is omitted, default to "manual".
+
+Validate assignedAdvisorId when provided.
+
+The assigned user must:
+
+- exist
+- have the advisor role
+- belong to the same brokerage as the lead creator
+
+Do not allow assigning an advisor from another brokerage.
+
+## 5. Lead Updates
+
+PATCH /api/leads/:id should allow updating appropriate lead fields.
+
+Do not allow clients to modify brokerageId.
+
+Do not allow changing brokerage ownership through an update request.
+
+When assignedAdvisorId is changed:
+
+- validate that the new advisor exists
+- validate that the advisor belongs to the same brokerage
+- validate that the user has the advisor role
+
+When status changes, validate that the new status is one of the supported pipeline statuses.
+
+Do not implement stage automation, email triggers, tasks, or WebSockets yet. Those will be added later.
+
+## 6. Lead Listing
+
+GET /api/leads should support basic useful filters:
+
+- status
+- assignedAdvisorId
+- source
+- search
+
+Search should support basic matching against relevant fields such as name, email, or phone.
+
+Keep the implementation simple. Do not introduce a search engine or advanced filtering system.
+
+All filters must still remain inside the authenticated user's tenant scope.
+
+Return a useful paginated response rather than returning an unlimited number of records.
+
+Use sensible defaults for page and limit and enforce a maximum limit.
+
+## 7. Lead Detail
+
+GET /api/leads/:id should return the lead only if the authenticated user has access to that lead.
+
+If a brokerage user requests another brokerage's lead ID, do not reveal that the lead exists.
+
+Use an appropriate not-found response.
+
+## 8. Delete
+
+DELETE /api/leads/:id should be restricted to appropriate roles.
+
+For the MVP, allow:
+
+- brokerageAdmin
+- platformAdmin
+
+Do not allow advisors or clients to delete leads.
+
+Deletion must still enforce tenant isolation.
+
+## 9. Architecture
+
+Follow:
+
+Route → Controller → Service → Model/DB
+
+Keep:
+
+- routes focused on route definitions
+- controllers thin
+- business logic in services
+- database logic in models/services
+- authorization in middleware
+
+Reuse existing auth and role middleware.
+
+Do not duplicate authentication logic.
+
+## 10. Error Handling
+
+Handle:
+
+- validation errors
+- invalid ObjectIds
+- missing leads
+- unauthorized access
+- insufficient permissions
+- invalid advisor assignment
+- cross-tenant advisor assignment
+
+Do not leak information about resources belonging to another brokerage.
+
+## 11. Dependencies
+
+Do not add unnecessary dependencies.
+
+Use the existing Express and Mongoose stack.
+
+## 12. Scope Restrictions
+
+Do NOT implement yet:
+
+- Tally webhook
+- duplicate lead detection
+- pipeline UI
+- WebSockets
+- Socket.IO
+- email
+- email templates
+- tasks
+- client conversion
+- client portal
+- document uploads
+- background document processing
+- queues/workers
+- dashboard
+- OAuth
+- frontend lead UI
+
+Only implement the backend Lead foundation and API.
+
+Do not modify the existing authentication behavior.
+
+Do not modify the client application.
+
+## 13. Verification
+
+After implementation:
+
+1. Show the updated server directory tree.
+2. Show the Lead model.
+3. Show lead routes.
+4. Show lead controllers.
+5. Show lead services.
+6. Explain exactly how tenant isolation is enforced.
+7. Explain how cross-tenant lead access is prevented.
+8. Explain how advisor assignment is validated.
+9. Show the API endpoints and expected request/response behavior.
+10. Run syntax checks/tests if available.
+11. Report any assumptions or issues.
+
+Do not implement anything outside this scope.
 
 ## Prompt 6
+
+Add a temporary development-only endpoint to create the first platform administrator so that the authentication system can be tested locally.
+
+Requirements:
+
+1. Create:
+   POST /api/dev/create-platform-admin
+
+2. This endpoint must only work when NODE_ENV is not "production".
+
+3. The request body should accept:
+   - name
+   - email
+   - password
+
+4. Validate all required fields.
+
+5. Normalize the email using the existing authentication email normalization logic.
+
+6. Hash the password using the existing bcryptjs strategy before saving it.
+
+7. Create a User with:
+   - name
+   - normalized email
+   - passwordHash
+   - role: "platformAdmin"
+
+8. Do not require a brokerageId for the platformAdmin.
+
+9. If a platformAdmin already exists, reject the request instead of creating another one.
+
+10. Never return password or passwordHash in the response.
+
+11. Do not automatically log the user in or create a JWT. The purpose of this endpoint is only to create the development test account. Authentication must still be tested through the normal /api/auth/login endpoint.
+
+12. Keep this endpoint isolated under /api/dev.
+
+13. Do not add a public production signup or registration endpoint.
+
+14. Do not modify the existing login, logout, authentication middleware, role middleware, or tenant isolation behavior.
+
+15. Follow the existing architecture:
+    Route → Controller → Service → Model/DB
+
+16. Reuse existing authentication utilities where appropriate instead of duplicating password hashing or email normalization logic.
+
+17. Add clear development-only protection and return an appropriate error if NODE_ENV is production.
+
+18. Do not modify the client.
+
+19. Do not implement brokerage creation yet.
+
+20. Do not implement any other features.
+
+After implementation:
+
+- show the files changed
+- show the development route
+- show the controller/service implementation
+- explain how production execution is prevented
+- explain how duplicate platform admins are prevented
+- run syntax checks
+- provide the exact curl or PowerShell command needed to create the test platform admin
+- provide the exact command needed to remove the test account later if necessary
+
+Do not implement anything outside this scope.
+
+## Prompt 7
+
+
+
+## Prompt 8
