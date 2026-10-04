@@ -18,7 +18,9 @@ const leadSchema = new mongoose.Schema(
       lowercase: true,
       match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Enter a valid email address"],
     },
+    normalizedEmail: { type: String, trim: true, lowercase: true, index: true },
     phone: { type: String, trim: true, maxlength: 40 },
+    normalizedPhone: { type: String, trim: true, index: true },
     source: { type: String, trim: true, lowercase: true, default: "manual", maxlength: 80 },
     status: { type: String, enum: LEAD_STATUSES, default: "NEW", index: true },
     assignedAdvisorId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
@@ -26,6 +28,11 @@ const leadSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+leadSchema.pre("validate", function normalizeContactFields() {
+  this.normalizedEmail = this.email?.trim().toLowerCase() || undefined;
+  this.normalizedPhone = this.phone?.replace(/[^\d+]/g, "") || undefined;
+});
 
 leadSchema.index({ brokerageId: 1, createdAt: -1 });
 leadSchema.index({ brokerageId: 1, status: 1, createdAt: -1 });

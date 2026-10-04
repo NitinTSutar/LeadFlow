@@ -13,6 +13,8 @@ const brokerageSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+brokerageSchema.index({ name: 1 }, { unique: true, collation: { locale: "en", strength: 2 } });
+
 const Brokerage = mongoose.model("Brokerage", brokerageSchema);
 
 export default Brokerage;

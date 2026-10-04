@@ -9,10 +9,11 @@ export const config = {
   cookieSecure: process.env.COOKIE_SECURE === "true",
   frontendOrigin: process.env.FRONTEND_ORIGIN || "http://localhost:5173",
   authCookieName: "leadflow_token",
+  tallyWebhookSecret: process.env.TALLY_WEBHOOK_SECRET,
 };
 
 export function validateConfig() {
-  const missing = ["MONGODB_URI", "JWT_SECRET"].filter((key) => !process.env[key]);
+  const missing = ["MONGODB_URI", "JWT_SECRET", "TALLY_WEBHOOK_SECRET"].filter((key) => !process.env[key]);
 
   if (missing.length > 0) {
     throw new Error(`Missing required configuration: ${missing.join(", ")}`);

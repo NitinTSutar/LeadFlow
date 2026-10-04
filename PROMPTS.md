@@ -737,6 +737,232 @@ Do not implement anything outside this scope.
 
 ## Prompt 7
 
+Implement brokerage management for LeadFlow.
 
+Context:
+- This is a MERN stack application.
+- Backend uses Node.js, Express.js, MongoDB, and Mongoose.
+- Architecture rule: Route -> Controller -> Service -> Model/DB.
+- Controllers must stay thin.
+- Authentication uses JWT stored in an HTTP-only cookie.
+- Roles are: platformAdmin, brokerageAdmin, advisor, client.
+- Multi-tenancy is mandatory.
+- A platformAdmin is global and has brokerageId = null.
+- Tenant users must belong to exactly one brokerage.
+- Do not trust brokerageId from request body for tenant ownership.
+- Existing auth middleware includes requireAuth, requireRole, requireBrokerageContext and brokerageFilter.
+- Existing User and Brokerage models already exist.
+- Exactly one platformAdmin is allowed.
+
+Requirements:
+
+1. Create brokerage management APIs for platformAdmin:
+   POST   /api/brokerages
+   GET    /api/brokerages
+   GET    /api/brokerages/:id
+   PATCH  /api/brokerages/:id
+
+2. Only platformAdmin can access these endpoints.
+
+3. Brokerage fields should remain minimal:
+   - name
+   - timestamps
+
+4. Validate brokerage name:
+   - required
+   - trimmed
+   - minimum 2 characters
+   - maximum 120 characters
+
+5. Prevent duplicate brokerage names in a case-insensitive manner if practical with the existing architecture. Do not introduce unnecessary complexity.
+
+6. Add an API to create a brokerage admin:
+   POST /api/brokerages/:id/admins
+
+7. Only platformAdmin can create a brokerage admin.
+
+8. Brokerage admin creation should accept:
+   - name
+   - email
+   - password
+
+9. Normalize email before storing it.
+
+10. Hash the password using the existing bcryptjs setup. Never store plaintext passwords.
+
+11. Create the user with:
+   role = "brokerageAdmin"
+   brokerageId = the brokerage ID from the URL
+
+12. Validate that the brokerage exists before creating its admin.
+
+13. Do not allow the client to override role or brokerageId.
+
+14. Reuse existing authentication/service utilities where appropriate instead of duplicating logic.
+
+15. Add appropriate error handling:
+   - invalid brokerage ID -> 400
+   - brokerage not found -> 404
+   - duplicate email -> 409
+   - duplicate brokerage name -> 409
+   - validation errors -> 400
+
+16. Keep the implementation focused. Do not add frontend code, seed data, new libraries, or unrelated features.
+
+17. Update PROMPTS.md by appending this exact prompt as the next prompt entry. Do not modify any previous prompt entries.
+
+18. After implementation, ensure the server has no syntax/import errors.
+
+Return a concise summary of:
+- files created/changed
+- API endpoints added
+- authorization rules
+- validation/error handling
+- any assumptions made
 
 ## Prompt 8
+
+Implement the Tally webhook lead ingestion flow for LeadFlow.
+
+Context:
+- LeadFlow is a MERN stack application for a multi-tenant mortgage brokerage CRM.
+- Backend uses Node.js, Express.js, MongoDB, and Mongoose.
+- Architecture: Route -> Controller -> Service -> Model/DB.
+- Controllers must stay thin.
+- Existing Lead model and lead service already exist.
+- Existing Lead statuses are:
+  NEW, CONTACTED, QUALIFIED, APPLICATION, WON, LOST.
+- Existing User/Brokerage models and authentication/multi-tenancy foundation already exist.
+- Tally will be the first external lead source.
+- Each Tally form belongs to exactly one brokerage.
+- The backend must NEVER infer a brokerage from the form display name or default to a brokerage.
+- The Tally form ID must map explicitly to a brokerage.
+
+Goal:
+Receive Tally form submissions and create leads automatically while safely handling duplicate webhook deliveries and duplicate people.
+
+Requirements:
+
+1. Create a Tally integration model that maps:
+   - formId
+   - brokerageId
+   - active/enabled status
+   - timestamps
+
+2. Add appropriate indexes/constraints so one Tally form cannot be mapped to multiple brokerages.
+
+3. Create a webhook endpoint:
+   POST /api/webhooks/tally
+
+4. The webhook endpoint must be publicly accessible and must NOT require normal JWT authentication.
+
+5. Implement Tally webhook signature verification using the Tally-Signature header and the configured webhook signing secret.
+   - Use the official Tally signing approach.
+   - Keep the secret in environment variables.
+   - Never hardcode the secret.
+   - Reject invalid signatures with 401.
+   - Do not log the signing secret.
+
+6. Add the required environment configuration:
+   TALLY_WEBHOOK_SECRET=
+   Do not add the real secret to .env.example.
+
+7. Parse the Tally webhook payload and extract:
+   - eventId
+   - eventType
+   - data.formId
+   - data.submissionId
+   - submitted form fields
+
+8. Only process the expected submission event type.
+   For unsupported event types, return a safe 2xx response without creating a lead.
+
+9. Find the brokerage using:
+   data.formId -> TallyIntegration -> brokerageId
+
+10. If the formId is not mapped to an active integration:
+   - reject the webhook
+   - do not create a lead
+   - do not assign the event to any default brokerage.
+
+11. Implement webhook idempotency.
+   Create a model/table for processed webhook events containing at minimum:
+   - eventId
+   - eventType
+   - formId
+   - processedAt
+   - timestamps
+
+   eventId must be unique.
+
+12. If the same eventId is received again:
+   - do not create another lead
+   - return a successful idempotent response.
+
+13. Implement duplicate-person detection within the same brokerage.
+
+   Normalize email and phone before comparison.
+
+   Duplicate matching rules:
+   - same brokerageId AND same normalized email
+   OR
+   - same brokerageId AND same normalized phone
+
+   If an existing lead is found:
+   - do not create a second lead
+   - return a successful response indicating that an existing lead was matched.
+
+14. If no duplicate person exists:
+   create a new Lead with:
+   - brokerageId from the Tally integration
+   - firstName
+   - lastName
+   - email
+   - phone
+   - source = "tally"
+   - status = "NEW"
+   - notes if provided by the form
+   - assignedAdvisorId should remain empty unless explicitly supported later.
+
+15. Do not trust brokerageId from the Tally payload.
+
+16. Keep Tally field mapping isolated in a service/helper so the webhook controller does not contain large mapping logic.
+
+17. Since Tally payload field IDs can vary by form, make the mapping reasonably robust:
+   - support common field labels such as First Name, Last Name, Email, Phone, Notes
+   - normalize labels when matching.
+   - Do not build a huge generic form engine.
+
+18. Handle malformed payloads safely with 400.
+
+19. Handle database/service failures with the existing global error handling approach.
+
+20. IMPORTANT:
+   Avoid marking the webhook event as processed before lead creation succeeds.
+   The system must be safe if processing fails halfway through.
+
+21. Keep the implementation focused.
+   Do not implement queues, Socket.IO, email, tasks, frontend, or document processing in this prompt.
+
+22. Add the necessary files/models/services/routes only.
+
+23. Update PROMPTS.md by appending this exact prompt as Prompt 8.
+   Do not modify any previous prompt entries.
+
+24. Update server/.env.example with the new variable name only:
+   TALLY_WEBHOOK_SECRET=
+
+25. Do not add real secrets to source control.
+
+26. Run syntax/import checks after implementation.
+
+Return a concise summary of:
+- files created/changed
+- webhook flow
+- signature verification
+- idempotency strategy
+- duplicate-person strategy
+- Tally field mapping approach
+- verification performed
+
+## Prompt 9
