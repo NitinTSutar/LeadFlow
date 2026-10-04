@@ -150,3 +150,284 @@ Tasks:
 Do not proceed to the next feature.
 
 ## Prompt 3
+
+Implement the backend authentication and multi-tenant foundation for LeadFlow.
+
+Before making code changes, inspect the existing server structure, package.json, AGENTS.md, and current environment/database configuration. Preserve the existing architecture and conventions.
+
+## 1. Dependencies
+
+Install only the dependencies required for this authentication step:
+
+- bcryptjs
+- jsonwebtoken
+- cookie-parser
+- cors
+
+Do not install TypeScript, frontend dependencies, Socket.IO, email libraries, file-upload libraries, queue libraries, or other dependencies that are not required yet.
+
+## 2. Database Models
+
+Create a Brokerage Mongoose model with:
+
+- name
+- timestamps
+
+Create a User Mongoose model with:
+
+- name
+- email
+- passwordHash
+- role
+- brokerageId
+- timestamps
+
+Use appropriate Mongoose validation and indexes where useful.
+
+The supported roles are:
+
+- platformAdmin
+- brokerageAdmin
+- advisor
+- client
+
+Email should be normalized consistently so duplicate accounts cannot be created because of email casing differences.
+
+brokerageId should reference the Brokerage model.
+
+Do not store plain-text passwords.
+
+## 3. Environment Configuration
+
+Extend the existing environment configuration with:
+
+JWT_SECRET=
+COOKIE_SECURE=false
+
+Keep the existing PORT and MONGODB_URI configuration.
+
+Update server/.env.example accordingly.
+
+Do not commit or expose real secrets.
+
+## 4. Authentication
+
+Implement authentication using JWT stored in an HTTP-only cookie.
+
+Create:
+
+POST /api/auth/login
+POST /api/auth/logout
+GET /api/auth/me
+
+Login should:
+
+1. Validate the submitted email and password.
+2. Normalize the email.
+3. Find the user by email.
+4. Verify the password using bcryptjs.
+5. Generate a JWT containing only the minimum required identity information.
+6. Store the JWT in an HTTP-only cookie.
+7. Return safe user information.
+8. Never return passwordHash.
+
+The authentication cookie should use appropriate security settings. Use COOKIE_SECURE from environment configuration so local development works over HTTP while production can use secure cookies.
+
+Logout should clear the authentication cookie.
+
+GET /api/auth/me should return the currently authenticated user's safe information.
+
+## 5. Authentication Middleware
+
+Create authentication middleware that:
+
+1. Reads the JWT from the HTTP-only cookie.
+2. Rejects requests without a valid token with HTTP 401.
+3. Verifies the JWT using JWT_SECRET.
+4. Loads the corresponding user from MongoDB.
+5. Attaches the authenticated user to req.user.
+6. Never expose passwordHash through req.user responses.
+
+Handle expired, invalid, and missing tokens safely.
+
+Do not trust user identity, role, or brokerageId sent by the frontend.
+
+## 6. Role-Based Authorization
+
+Create reusable role-based authorization middleware.
+
+It should allow routes to specify which roles are allowed to access them.
+
+For example, the middleware should support usage conceptually similar to:
+
+requireRole("brokerageAdmin", "advisor")
+
+Return HTTP 403 when the authenticated user does not have the required role.
+
+Keep this middleware generic so it can be reused by future lead, client, document, task, and dashboard routes.
+
+## 7. Multi-Tenant Foundation
+
+Establish the backend foundation for strict brokerage-level tenant isolation.
+
+Rules:
+
+- Every brokerage user has a brokerageId.
+- Backend code must derive the brokerage context from the authenticated user.
+- Never trust a brokerageId supplied by the client to determine tenant access.
+- Never rely on frontend filtering for tenant isolation.
+- Database queries for brokerage-owned resources must be scoped by the authenticated user's brokerageId.
+- A user belonging to Brokerage A must never be able to access Brokerage B's data by changing an ID in the request.
+- platformAdmin is the only role that may operate across brokerages.
+- client users must also remain restricted to their own brokerage and their own client-related resources.
+
+Create reusable helper/middleware patterns where appropriate for enforcing tenant context, but do not over-engineer a generic framework yet.
+
+Do not implement lead, client-case, document, or pipeline business logic in this step.
+
+## 8. CORS and Cookies
+
+Configure Express CORS correctly for the frontend/backend architecture.
+
+Use environment-based configuration where appropriate rather than hardcoding production URLs.
+
+Enable credentials because authentication uses HTTP-only cookies.
+
+Add cookie-parser and configure Express JSON parsing as required.
+
+Do not weaken security by allowing unrestricted credentialed origins.
+
+If a frontend origin environment variable is needed, add it to .env.example and explain it.
+
+## 9. Project Architecture
+
+Follow the existing architecture:
+
+Route → Controller → Service → Model/DB
+
+Keep:
+
+- routes responsible for route definitions
+- controllers thin
+- authentication/business logic inside services
+- database schemas/models inside models
+- reusable authentication/authorization logic inside middleware
+
+Do not put large amounts of business logic directly inside route files.
+
+## 10. Error Handling
+
+Implement clear handling for:
+
+- missing credentials
+- invalid credentials
+- missing authentication cookie
+- invalid JWT
+- expired JWT
+- insufficient role permissions
+- missing required configuration
+
+Do not leak sensitive information through error responses.
+
+For login failures, avoid revealing whether an email exists in the database.
+
+## 11. API Structure
+
+Create the authentication route structure under:
+
+/api/auth
+
+Keep the API naming consistent with the existing project.
+
+Do not implement any unrelated endpoints.
+
+## 12. Development Test Support
+
+Do not create a production-facing public registration endpoint.
+
+## 13. Scope Restrictions
+
+Do NOT implement any of the following yet:
+
+- Tally webhook
+- lead ingestion
+- duplicate lead detection
+- pipeline
+- advisor assignment
+- lead-to-client conversion
+- client portal
+- document upload
+- background document checking
+- queues/workers
+- email templates
+- email sending
+- tasks
+- WebSockets
+- Socket.IO
+- dashboard
+- frontend authentication UI
+- OAuth
+- TypeScript
+
+Do not modify the client application except if absolutely required for CORS configuration; no frontend authentication implementation is needed yet.
+
+Do not modify the existing MongoDB connection architecture unless necessary.
+
+Do not add unnecessary abstractions or dependencies.
+
+## 14. Verification
+
+After implementation:
+
+1. Show the updated server directory tree.
+2. Show server/package.json.
+3. Show the User model.
+4. Show the Brokerage model.
+5. Show authentication service.
+6. Show authentication middleware.
+7. Show role middleware.
+8. Show authentication routes/controllers.
+9. Show relevant environment configuration changes.
+10. Explain exactly how tenant isolation is enforced.
+11. Explain the JWT cookie configuration.
+12. Explain the development test-user mechanism.
+13. Provide the commands needed to run and test the authentication flow.
+14. Run the relevant checks/tests if available and report their results.
+15. Mention any issues or assumptions.
+
+Do not implement anything outside this scope.
+
+## Prompt 4
+
+Remove the development test mechanism that was added as part of the authentication implementation.
+
+Remove all test-specific code and configuration:
+
+1. Delete the development test script file.
+
+2. Remove the development test script from server/package.json.
+
+3. Remove all development test environment variables from server/.env.example.
+
+4. Remove any test-specific imports or references from the codebase.
+
+5. Do not modify the User model, Brokerage model, authentication service, authentication middleware, routes, controllers, database connection, or existing authentication behavior unless required to remove test references.
+
+6. Do not add another test mechanism or registration endpoint.
+
+7. Do not modify the client.
+
+After the changes:
+- show the updated server/package.json
+- show the updated server/.env.example
+- show the files deleted
+- search the project for removed test references and confirm there are no remaining references
+- provide a concise summary
+
+Do not make any unrelated changes.
+
+## Prompt 5
+
+
+
+## Prompt 6

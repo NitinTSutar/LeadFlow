@@ -1,8 +1,9 @@
 import app from "./app.js";
-import { config } from "./config/env.js";
+import { config, validateConfig } from "./config/env.js";
 import { connectDatabase } from "./config/database.js";
 
 try {
+  validateConfig();
   await connectDatabase();
 
   app.listen(config.port, () => {
