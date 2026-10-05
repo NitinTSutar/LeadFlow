@@ -1,6 +1,7 @@
 import { updateLeadStatus } from "../services/lead.service.js";
 import { emitLeadUpdated } from "../sockets/index.js";
 import { createTasksForStage } from "../services/task.service.js";
+import { sendStageEmail } from "../services/email-trigger.service.js";
 
 export async function updateStatus(req, res) {
   const { status, version } = req.body || {};
@@ -17,6 +18,7 @@ export async function updateStatus(req, res) {
       version: result.lead.version,
     });
     createTasksForStage(result.lead).catch((error) => console.error("Task trigger execution failed:", error.message));
+    sendStageEmail(result.lead).catch((error) => console.error("Pipeline email trigger failed:", error.message));
     return res.json({ lead: result.lead });
   } catch (error) {
     if (error.message === "INVALID_ID") return res.status(400).json({ message: "Invalid lead ID." });

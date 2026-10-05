@@ -1885,3 +1885,236 @@ Return a concise summary of:
 - verification performed
 
 ## Prompt 14
+
+Implement email templates and pipeline email triggers for LeadFlow using Resend.
+
+Context:
+- LeadFlow is a MERN stack application for a multi-tenant mortgage brokerage CRM.
+- Backend uses Node.js, Express.js, MongoDB, and Mongoose.
+- Architecture: Route -> Controller -> Service -> Model/DB.
+- Controllers must remain thin.
+- Existing roles:
+  platformAdmin
+  brokerageAdmin
+  advisor
+  client
+- Authentication uses JWT in an HTTP-only cookie.
+- Multi-tenancy is mandatory.
+- Existing Lead model has:
+  brokerageId
+  firstName
+  lastName
+  email
+  assignedAdvisorId
+  status
+  version
+- Existing pipeline statuses:
+  NEW
+  CONTACTED
+  QUALIFIED
+  APPLICATION
+  WON
+  LOST
+- Existing lead status endpoint:
+  PATCH /api/leads/:id/status
+- Existing task trigger system runs after successful pipeline status changes.
+- Existing Socket.IO brokerage rooms and centralized socket events already exist.
+- Existing User model supports advisor and client roles.
+- Existing tenant isolation and RBAC utilities must be reused.
+- Do not modify previous PROMPTS.md entries.
+
+Goal:
+Allow brokerage admins to create and edit email templates and link one template to each pipeline stage. When a lead enters a stage, render the configured template and send the email asynchronously.
+
+Email provider:
+- Use Resend.
+- Add the required dependency if it is not already installed.
+- Keep the Resend API key server-side only.
+- Never expose the API key to the frontend.
+- Add these environment variables to server/.env.example:
+
+RESEND_API_KEY=
+EMAIL_FROM=
+
+Do not add real credentials to source control.
+
+Requirements:
+
+1. Create an EmailTemplate model with at minimum:
+   - brokerageId
+   - name
+   - subject
+   - body
+   - stage
+   - isActive
+   - timestamps
+
+2. Each template belongs to exactly one brokerage.
+
+3. Stage must be one of:
+   NEW
+   CONTACTED
+   QUALIFIED
+   APPLICATION
+   WON
+   LOST
+
+4. Keep the MVP simple:
+   - allow at most one active email template linked to a given pipeline stage per brokerage.
+   - if another active template already exists for the same brokerage and stage, return 409.
+
+5. Brokerage admins can:
+   - create templates
+   - list templates
+   - update templates
+   - activate/deactivate templates
+   - delete templates
+
+6. Platform admins may manage templates across brokerages.
+
+7. Advisors and clients must not manage email templates.
+
+8. Create template endpoints:
+
+   POST   /api/brokerages/:id/email-templates
+   GET    /api/brokerages/:id/email-templates
+   GET    /api/brokerages/:id/email-templates/:templateId
+   PATCH  /api/brokerages/:id/email-templates/:templateId
+   DELETE /api/brokerages/:id/email-templates/:templateId
+
+9. Validate:
+   - name required, trimmed, reasonable maximum length
+   - subject required
+   - body required
+   - stage required and valid
+   - brokerage must exist
+
+10. Do not accept brokerageId from the request body.
+    Determine ownership from the authorized brokerage context and URL.
+
+11. Support these template placeholders:
+    {{clientName}}
+    {{advisorName}}
+
+12. Template rendering:
+    - replace placeholders with actual values at send time.
+    - missing advisor should render as an empty string or safe fallback.
+    - do not evaluate arbitrary JavaScript or expressions inside templates.
+    - do not create a general-purpose template language.
+
+13. Create a small email service that:
+    - initializes Resend from RESEND_API_KEY.
+    - sends an email using EMAIL_FROM.
+    - accepts recipient, subject, and rendered body.
+    - never logs API keys.
+
+14. When a lead successfully enters a pipeline stage through:
+    PATCH /api/leads/:id/status
+
+    find the active email template for:
+    - the lead's brokerage
+    - the new stage
+
+15. If an active template exists:
+    - render the template
+    - send it to the lead's email
+    - use the assigned advisor's name when available.
+
+16. If no template exists for that stage:
+    - do nothing.
+    - the lead status update must still succeed.
+
+17. Email sending must happen asynchronously and must not block or fail the lead status update.
+
+18. If Resend/email sending fails:
+    - log the failure appropriately.
+    - do not roll back the lead status.
+    - do not crash the server.
+
+19. Create a lightweight email-job/background service appropriate for the current MVP.
+    Do not introduce Redis/BullMQ.
+
+20. Prevent duplicate email sends caused by the same successful stage transition being processed multiple times.
+    Use the existing lead version/status transition information or an email-delivery record with a unique constraint.
+    Do not send the same stage-transition email twice for the same lead/version/template combination.
+
+21. Create an EmailDelivery model if needed with useful fields such as:
+    - brokerageId
+    - leadId
+    - templateId
+    - stage
+    - leadVersion
+    - recipient
+    - status
+    - sentAt
+    - failureReason
+    - timestamps
+
+22. Email delivery status may be:
+    PENDING
+    SENT
+    FAILED
+
+23. Preserve tenant isolation for email templates and delivery records.
+
+24. Never expose email delivery records belonging to another brokerage.
+
+25. If implementing email delivery APIs, restrict them appropriately:
+    - brokerageAdmin/platformAdmin may inspect deliveries for their brokerage.
+    - advisors/clients do not need delivery-management access for this MVP.
+
+26. Do not implement:
+    - marketing campaigns
+    - scheduled newsletters
+    - HTML email builder
+    - attachments
+    - bulk email
+    - arbitrary recipient entry
+    - frontend UI
+    - OAuth
+    - Redis/BullMQ
+
+27. Email should only be triggered by an actual successful pipeline stage change.
+
+28. A status update that fails due to:
+    - authentication
+    - authorization
+    - validation
+    - tenant isolation
+    - stale version
+    - database failure
+
+    must not send an email.
+
+29. Preserve all existing:
+    - authentication
+    - RBAC
+    - tenant isolation
+    - Lead CRUD
+    - Tally webhook
+    - Socket.IO
+    - Lead-to-client conversion
+    - documents
+    - advisor management
+    - task triggers
+
+30. Add useful indexes/unique constraints for:
+    - brokerageId
+    - stage
+    - active template per brokerage/stage
+    - lead/template/version delivery deduplication
+
+31. Run syntax checks and application import/startup checks after implementation.
+
+Return a concise summary of:
+- files created/changed
+- email template model
+- supported placeholders
+- Resend integration
+- stage-trigger flow
+- async sending approach
+- duplicate email prevention
+- tenant isolation
+- verification performed
+
+## Prompt 15
