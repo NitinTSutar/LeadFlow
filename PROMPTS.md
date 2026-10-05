@@ -2118,3 +2118,138 @@ Return a concise summary of:
 - verification performed
 
 ## Prompt 15
+
+Implement the LeadFlow dashboard pipeline counts API.
+
+Context:
+- LeadFlow is a MERN stack multi-tenant mortgage brokerage CRM.
+- Backend uses Node.js, Express.js, MongoDB, and Mongoose.
+- Architecture: Route -> Controller -> Service -> Model/DB.
+- Controllers must remain thin.
+- Existing roles:
+  platformAdmin
+  brokerageAdmin
+  advisor
+  client
+- Authentication uses JWT in an HTTP-only cookie.
+- Multi-tenancy is mandatory.
+- Existing Lead model contains:
+  brokerageId
+  firstName
+  lastName
+  email
+  phone
+  source
+  status
+  assignedAdvisorId
+  clientId
+  convertedAt
+  version
+  timestamps
+- Existing pipeline statuses:
+  NEW
+  CONTACTED
+  QUALIFIED
+  APPLICATION
+  WON
+  LOST
+- Existing tenant isolation utilities must be reused.
+- Do not modify previous PROMPTS.md entries.
+
+Goal:
+Create a fast dashboard API that returns current pipeline counts for the authenticated user's brokerage.
+
+Requirements:
+
+1. Create a dashboard service and controller.
+
+2. Create endpoint:
+
+   GET /api/dashboard/pipeline
+
+3. Access:
+   - platformAdmin: may request counts for a brokerage using a query parameter:
+     ?brokerageId=<id>
+   - brokerageAdmin: automatically uses their own brokerage.
+   - advisor: automatically uses their own brokerage.
+   - client: must receive 403.
+
+4. Never trust brokerageId from the request body.
+
+5. For brokerageAdmin and advisor:
+   - derive brokerageId from req.user.brokerageId.
+   - ignore any brokerageId query parameter they provide.
+
+6. For platformAdmin:
+   - brokerageId query parameter is required.
+   - validate that the brokerage exists.
+   - return 404 if the brokerage does not exist.
+
+7. Return counts for every pipeline stage:
+
+   {
+     "NEW": number,
+     "CONTACTED": number,
+     "QUALIFIED": number,
+     "APPLICATION": number,
+     "WON": number,
+     "LOST": number
+   }
+
+8. Counts must be calculated from the Lead collection and scoped strictly by brokerageId.
+
+9. Use a single efficient MongoDB aggregation/grouping query rather than running six separate count queries.
+
+10. The API must not return leads or unnecessary data.
+    Return only pipeline counts.
+
+11. Counts must reflect the current database state.
+    Do not introduce application-level caching for this MVP.
+
+12. The dashboard should therefore never intentionally serve stale cached counts.
+
+13. Add useful indexes if needed.
+    At minimum, consider an index supporting:
+    - brokerageId
+    - status
+
+14. Preserve tenant isolation:
+    - Brokerage A must never see Brokerage B's counts.
+    - An advisor must never be able to request another brokerage's counts by changing a query parameter.
+    - Platform admin may explicitly request another brokerage.
+
+15. Handle a brokerage with no leads by returning zero for every stage.
+
+16. Handle only valid existing pipeline statuses.
+    Do not create additional pipeline stages.
+
+17. Keep the implementation simple.
+    Do not introduce:
+    - Redis
+    - BullMQ
+    - WebSockets specifically for dashboard counts
+    - analytics/event-sourcing
+    - complex caching
+    - frontend UI
+
+18. The endpoint should work with the existing authentication and RBAC middleware.
+
+19. Follow the existing project naming and folder conventions.
+
+20. Add the dashboard route to the existing Express application.
+
+21. Run syntax checks and application import/startup checks after implementation.
+
+22. Verify tenant isolation and role behavior at the API/service level where practical.
+
+Return a concise summary of:
+- files created/changed
+- endpoint
+- response shape
+- aggregation approach
+- role behavior
+- tenant isolation
+- indexes added
+- verification performed
+
+## Prompt 16
