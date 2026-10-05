@@ -8,6 +8,7 @@ import devRoutes from "./routes/dev.routes.js";
 import brokerageRoutes from "./routes/brokerage.routes.js";
 import tallyRoutes from "./routes/tally.routes.js";
 import clientRoutes from "./routes/client.routes.js";
+import taskRoutes from "./routes/task.routes.js";
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use("/api/dev", devRoutes);
 app.use("/api/brokerages", brokerageRoutes);
 app.use("/api/webhooks", tallyRoutes);
 app.use("/api/client", clientRoutes);
+app.use("/api/tasks", taskRoutes);
 
 app.use((error, req, res, next) => {
   console.error(error);

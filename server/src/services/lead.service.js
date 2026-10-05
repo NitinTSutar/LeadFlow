@@ -97,6 +97,7 @@ export async function updateLeadStatus(user, leadId, status, version) {
   const current = await Lead.findOne(scope).select("status version brokerageId");
   if (!current) return { outcome: "not_found" };
   if ((current.version ?? 0) !== version) return { outcome: "conflict", lead: await Lead.findById(leadId) };
+  if (current.status === status) return { outcome: "unchanged", lead: await Lead.findById(leadId) };
 
   const updated = await Lead.findOneAndUpdate(
     { ...scope, $or: [{ version }, { version: { $exists: false } }] },

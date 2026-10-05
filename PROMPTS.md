@@ -1651,3 +1651,237 @@ Return a concise summary of:
 - verification performed
 
 ## Prompt 13
+
+Implement task management and pipeline task triggers for LeadFlow.
+
+Context:
+- LeadFlow is a MERN stack application for a multi-tenant mortgage brokerage CRM.
+- Backend uses Node.js, Express.js, MongoDB, and Mongoose.
+- Architecture: Route -> Controller -> Service -> Model/DB.
+- Controllers must remain thin.
+- Existing roles:
+  platformAdmin
+  brokerageAdmin
+  advisor
+  client
+- Authentication uses JWT stored in an HTTP-only cookie.
+- Multi-tenancy is mandatory.
+- Existing Lead model has:
+  brokerageId
+  assignedAdvisorId
+  status
+  version
+- Existing pipeline statuses:
+  NEW
+  CONTACTED
+  QUALIFIED
+  APPLICATION
+  WON
+  LOST
+- Existing lead status changes use:
+  PATCH /api/leads/:id/status
+  with optimistic concurrency/version checking.
+- Existing Socket.IO broadcasts lead:updated events to brokerage rooms.
+- Existing advisor management supports active/inactive advisors and active case counts.
+- Existing tenant isolation and RBAC middleware/utilities must be reused.
+- Do not modify previous PROMPTS.md entries.
+
+Goal:
+Implement brokerage-configurable task triggers so that when a lead enters a pipeline stage, configured tasks are created for the assigned advisor, with a due date and overdue state.
+
+Requirements:
+
+1. Create a Task model with at minimum:
+   - brokerageId
+   - leadId
+   - advisorId
+   - title
+   - description
+   - status
+   - dueAt
+   - completedAt
+   - sourceStage
+   - timestamps
+
+2. Task statuses should be:
+   TODO
+   COMPLETED
+   CANCELLED
+
+3. Create a TaskTrigger model with at minimum:
+   - brokerageId
+   - stage
+   - title
+   - description
+   - dueInMinutes
+   - isActive
+   - timestamps
+
+4. Task triggers must be brokerage-specific.
+
+5. A trigger's stage must be one of the existing Lead pipeline statuses.
+
+6. Only brokerageAdmin and platformAdmin may create, update, list, activate/deactivate, and delete task triggers.
+
+7. Brokerage admins may manage triggers only for their own brokerage.
+
+8. Platform admins may manage triggers across brokerages.
+
+9. Do not allow clients or advisors to modify task trigger configuration.
+
+10. Create task-trigger configuration endpoints:
+
+    POST   /api/brokerages/:id/task-triggers
+    GET    /api/brokerages/:id/task-triggers
+    PATCH  /api/brokerages/:id/task-triggers/:triggerId
+    DELETE /api/brokerages/:id/task-triggers/:triggerId
+
+11. Trigger creation/update should support:
+    - stage
+    - title
+    - description
+    - dueInMinutes
+    - isActive
+
+12. Validate:
+    - title is required
+    - title should be trimmed and have a reasonable maximum length
+    - dueInMinutes must be a positive number
+    - stage must be valid
+    - brokerage must exist
+
+13. When a lead successfully enters a pipeline stage through:
+    PATCH /api/leads/:id/status
+
+    find all active task triggers for:
+    - the lead's brokerage
+    - the new status/stage
+
+14. For each matching active trigger:
+    - create a Task
+    - assign it to the lead's current assignedAdvisorId
+    - use the trigger title/description
+    - set sourceStage to the new lead status
+    - set dueAt based on dueInMinutes from the trigger
+
+15. If the lead has no assigned advisor:
+    do not create an advisor-assigned task.
+    Do not invent an advisor.
+    The lead status change itself must still succeed.
+
+16. Task creation must happen only after the lead status update succeeds.
+
+17. Task creation should not cause the lead status update itself to fail if task creation encounters an isolated non-critical error.
+    Log the task creation failure appropriately so the issue can be diagnosed.
+
+18. Prevent accidental duplicate tasks if the same status update is retried or processed more than once.
+
+19. Use the existing lead version/status transition mechanism to distinguish a real successful stage change from a stale/conflicting update.
+
+20. If the lead status does not actually change, do not create task triggers.
+
+21. Do not create tasks for arbitrary edits to a lead.
+
+22. Create task APIs:
+
+    GET   /api/tasks
+    GET   /api/tasks/:id
+    PATCH /api/tasks/:id
+    PATCH /api/tasks/:id/complete
+
+23. Task visibility:
+    - advisor: only tasks assigned to that advisor and belonging to their brokerage
+    - brokerageAdmin: tasks within their brokerage
+    - platformAdmin: may access tasks across brokerages
+    - client: no task access
+
+24. Preserve tenant isolation on every task query and mutation.
+
+25. Never trust brokerageId or advisorId from the client request when determining ownership.
+
+26. For task creation caused by a trigger, advisorId must come from the lead's assignedAdvisorId.
+
+27. For manually editing a task, do not allow users to move a task to another brokerage.
+
+28. Only brokerageAdmin and platformAdmin may reassign a task to another advisor.
+    When assigning a task to an advisor:
+    - advisor must exist
+    - advisor must have role advisor
+    - advisor must belong to the same brokerage
+    - advisor must be active
+
+29. Advisors may update task fields relevant to completing their own work, but must not:
+    - change brokerageId
+    - change ownership to another brokerage
+    - modify trigger configuration
+
+30. Implement overdue detection.
+
+    A task is overdue when:
+    - status = TODO
+    - dueAt is before the current time
+
+    Do not store overdue as a separate mutable status unless necessary.
+
+31. Task responses should include enough information for the frontend to visually distinguish overdue tasks.
+
+32. Add useful indexes for:
+    - brokerageId
+    - advisorId
+    - leadId
+    - status
+    - dueAt
+    - trigger/stage lookup
+
+33. Emit a Socket.IO event:
+    task:updated
+
+    after:
+    - task creation
+    - task completion
+    - task update
+    - task cancellation
+
+34. Emit task events only to the relevant brokerage room.
+
+35. Keep Socket.IO event names centralized with the existing socket constants.
+
+36. Task trigger execution must not block the lead status endpoint unnecessarily.
+    Keep the implementation simple and appropriate for the current MVP architecture.
+
+37. Do not introduce Redis/BullMQ in this prompt.
+
+38. Do not implement email templates, email sending, dashboard analytics, frontend UI, or unrelated features.
+
+39. Preserve all existing:
+    - authentication
+    - RBAC
+    - tenant isolation
+    - Lead CRUD
+    - Tally webhook
+    - Socket.IO lead updates
+    - Lead-to-client conversion
+    - document management
+    - advisor management
+
+40. Handle errors consistently:
+    - invalid IDs -> 400
+    - resource not found -> 404
+    - unauthorized -> 403
+    - unauthenticated -> 401
+    - validation errors -> 400
+    - conflicts -> 409 where appropriate
+
+41. Run syntax checks and application import/startup checks after implementation.
+
+Return a concise summary of:
+- files created/changed
+- Task and TaskTrigger models
+- trigger execution flow
+- duplicate-task prevention
+- task authorization and tenant isolation
+- overdue calculation
+- Socket.IO task events
+- verification performed
+
+## Prompt 14
