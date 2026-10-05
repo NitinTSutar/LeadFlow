@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
-import Lead from "../models/lead.model.js";
+import Lead, { LEAD_STATUSES } from "../models/lead.model.js";
 import User from "../models/user.model.js";
 import { brokerageFilter } from "../middleware/tenant.middleware.js";
 
-const writableFields = ["firstName", "lastName", "email", "phone", "source", "status", "assignedAdvisorId", "notes"];
+const writableFields = ["firstName", "lastName", "email", "phone", "source", "assignedAdvisorId", "notes"];
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -81,6 +81,31 @@ export async function updateLead(user, leadId, data) {
   }
   Object.assign(lead, updates);
   return lead.save();
+}
+
+export async function updateLeadStatus(user, leadId, status, version) {
+  assertObjectId(leadId);
+  if (!LEAD_STATUSES.includes(status)) throw new Error("INVALID_STATUS");
+  if (!Number.isInteger(version) || version < 0) throw new Error("INVALID_VERSION");
+
+  const scope = { _id: leadId, ...tenantQuery(user) };
+  const current = await Lead.findOne(scope).select("status version brokerageId");
+  if (!current) return { outcome: "not_found" };
+  if ((current.version ?? 0) !== version) return { outcome: "conflict", lead: await Lead.findById(leadId) };
+
+  const updated = await Lead.findOneAndUpdate(
+    { ...scope, $or: [{ version }, { version: { $exists: false } }] },
+    { $set: { status }, $inc: { version: 1 } },
+    { new: true, runValidators: true },
+  );
+  if (!updated) return { outcome: "conflict", lead: await Lead.findById(leadId) };
+
+  return {
+    outcome: "updated",
+    lead: updated,
+    previousStatus: current.status,
+    newStatus: updated.status,
+  };
 }
 
 export async function deleteLead(user, leadId) {

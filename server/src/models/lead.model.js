@@ -23,6 +23,7 @@ const leadSchema = new mongoose.Schema(
     normalizedPhone: { type: String, trim: true, index: true },
     source: { type: String, trim: true, lowercase: true, default: "manual", maxlength: 80 },
     status: { type: String, enum: LEAD_STATUSES, default: "NEW", index: true },
+    version: { type: Number, required: true, default: 0, min: 0 },
     assignedAdvisorId: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
     notes: { type: String, trim: true, maxlength: 5000 },
   },

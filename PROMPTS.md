@@ -966,3 +966,140 @@ Return a concise summary of:
 - verification performed
 
 ## Prompt 9
+
+Implement the LeadFlow lead pipeline status transitions with Socket.IO realtime updates and optimistic concurrency protection.
+
+Context:
+- LeadFlow is a MERN stack application.
+- Backend: Node.js, Express.js, MongoDB, Mongoose.
+- Architecture: Route -> Controller -> Service -> Model/DB.
+- Controllers must remain thin.
+- Authentication uses JWT in an HTTP-only cookie.
+- Roles:
+  platformAdmin
+  brokerageAdmin
+  advisor
+  client
+- Multi-tenancy is mandatory.
+- Existing Lead model and lead CRUD APIs already exist.
+- Existing lead statuses are:
+  NEW
+  CONTACTED
+  QUALIFIED
+  APPLICATION
+  WON
+  LOST
+- Existing tenant isolation utilities and authentication middleware must be reused.
+- Tally webhook lead ingestion already creates leads with status NEW.
+- Do not modify previous PROMPTS.md entries.
+
+Goal:
+Allow authorized brokerage users to move leads between pipeline stages and broadcast successful changes in realtime to users in the same brokerage.
+
+Requirements:
+
+1. Add Socket.IO to the backend.
+
+2. Add the required dependency if it is not already installed.
+
+3. Create a clean Socket.IO setup under:
+   server/src/sockets/
+
+4. Initialize Socket.IO from the existing HTTP server in server/src/server.js.
+   Do not create a second HTTP server.
+
+5. Configure Socket.IO CORS using the existing frontend origin configuration.
+
+6. Authenticate Socket.IO connections using the same JWT cookie used by the REST API.
+   - Reject unauthenticated socket connections.
+   - Resolve the authenticated user from the database.
+   - Do not trust brokerageId sent by the client.
+
+7. For authenticated tenant users, join a brokerage-specific room:
+   brokerage:<brokerageId>
+
+8. PlatformAdmin may connect but must not be treated as belonging to a brokerage room because brokerageId is null.
+
+9. Create a focused pipeline status update API:
+   PATCH /api/leads/:id/status
+
+10. The request body should contain:
+   - status
+   - version
+
+11. Only authenticated brokerage users with role brokerageAdmin or advisor can move leads.
+   PlatformAdmin may also update leads where appropriate using existing platform-admin behavior.
+
+12. Client users must never be allowed to move leads.
+
+13. Validate that the requested status is one of the existing Lead statuses.
+
+14. Preserve tenant isolation:
+   - brokerage users can only update leads belonging to their brokerage.
+   - never accept brokerageId from the request body.
+   - cross-tenant lead IDs should behave as not found.
+
+15. Implement optimistic concurrency protection.
+
+   Add a numeric version field to Lead if it does not already exist.
+
+   When updating a lead:
+   - require the client to send the current version.
+   - update only when the stored version matches the requested version.
+   - atomically increment the version.
+   - if the version does not match, return HTTP 409 Conflict.
+   - return the latest lead state in the response.
+
+16. Do not allow a stale request to overwrite a newer status.
+
+17. Keep status transition rules simple and practical for the MVP.
+   Any valid pipeline status may be selected from:
+   NEW, CONTACTED, QUALIFIED, APPLICATION, WON, LOST.
+   Do not build a complex workflow engine.
+
+18. After a successful database update only, emit a Socket.IO event:
+   lead:updated
+
+19. Emit the event only to the relevant brokerage room.
+
+20. The event payload should contain enough information for the frontend to update its state without immediately refetching the entire database.
+   Include at minimum:
+   - lead
+   - previousStatus
+   - newStatus
+   - updated version
+
+21. Do not emit realtime events when:
+   - authentication fails
+   - authorization fails
+   - lead is not found
+   - validation fails
+   - version conflict occurs
+   - database update fails
+
+22. Keep Socket.IO event names and room names centralized rather than scattering string literals throughout the codebase.
+
+23. Do not implement frontend Socket.IO code in this prompt.
+
+24. Do not implement tasks, email automation, dashboard caching, client conversion, documents, or Tally changes in this prompt.
+
+25. Preserve existing lead CRUD functionality.
+
+26. Make sure existing PATCH /api/leads/:id behavior does not accidentally bypass the new concurrency protection for status changes.
+   If necessary, route status changes through the new dedicated endpoint and keep the existing generic PATCH focused on non-status fields.
+
+27. Handle invalid ObjectIds and validation errors consistently with the existing API behavior.
+
+28. Run syntax checks and application import/startup checks after implementation.
+
+
+Return a concise summary of:
+- files created/changed
+- Socket.IO authentication approach
+- brokerage room strategy
+- status update API
+- optimistic concurrency/version strategy
+- realtime event payload
+- verification performed
+
+## Prompt 10
