@@ -44,3 +44,8 @@ export function emitLeadUpdated(brokerageId, payload) {
   if (!io || !brokerageId) return;
   io.to(SOCKET_ROOMS.brokerage(brokerageId.toString())).emit(SOCKET_EVENTS.LEAD_UPDATED, payload);
 }
+
+export function emitDocumentUpdated(brokerageId, payload) {
+  if (!io || !brokerageId) return;
+  io.to(SOCKET_ROOMS.brokerage(brokerageId.toString())).emit(SOCKET_EVENTS.DOCUMENT_UPDATED, payload);
+}

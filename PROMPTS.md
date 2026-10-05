@@ -1103,3 +1103,378 @@ Return a concise summary of:
 - verification performed
 
 ## Prompt 10
+
+Implement the Lead-to-Client conversion and client authentication foundation for LeadFlow.
+
+Context:
+- LeadFlow is a MERN stack application for a multi-tenant mortgage brokerage CRM.
+- Backend uses Node.js, Express.js, MongoDB, and Mongoose.
+- Architecture: Route -> Controller -> Service -> Model/DB.
+- Controllers must remain thin.
+- Authentication uses JWT stored in an HTTP-only cookie.
+- Existing roles:
+  platformAdmin
+  brokerageAdmin
+  advisor
+  client
+- Multi-tenancy is mandatory.
+- Existing User, Brokerage, and Lead models already exist.
+- Existing authentication middleware and RBAC utilities already exist.
+- Existing Lead pipeline statuses are:
+  NEW, CONTACTED, QUALIFIED, APPLICATION, WON, LOST.
+- Existing lead status changes use a dedicated concurrency-protected endpoint.
+- Existing tenant isolation rules must be preserved.
+- Do not modify previous functionality unnecessarily.
+
+Goal:
+Allow an authorized advisor or brokerage admin to convert an existing lead into a client, create the client's account, and allow that client to authenticate and access only their own case.
+
+Requirements:
+
+1. Add the minimum necessary relationship between a Lead and its client account.
+
+2. Add to the Lead model if not already present:
+   - clientId: ObjectId reference to User, nullable
+   - convertedAt: Date, nullable
+
+3. A lead may be converted to a client only once.
+
+4. Create a dedicated endpoint:
+   POST /api/leads/:id/convert-to-client
+
+5. Only these roles may convert a lead:
+   - advisor
+   - brokerageAdmin
+   - platformAdmin
+
+6. Client users must never be allowed to convert leads.
+
+7. Preserve tenant isolation:
+   - brokerage users can only convert leads belonging to their brokerage.
+   - never accept brokerageId from the request body.
+   - platformAdmin may operate across brokerages according to existing platform-admin behavior.
+
+8. The conversion endpoint should use the lead's existing:
+   - firstName
+   - lastName
+   - email
+   - phone
+
+   to create the client account.
+
+9. A client account must:
+   - have role = "client"
+   - belong to the same brokerage as the lead
+   - have a unique normalized email
+   - never store a plaintext password.
+
+10. The conversion request should accept a temporary password for the new client account.
+
+11. Hash the temporary password using the existing bcryptjs setup.
+
+12. Do not allow the request body to override:
+   - role
+   - brokerageId
+   - clientId
+   - lead ownership
+
+13. If the lead has no email, return a validation error because email is required for client login.
+
+14. If a user with the same email already exists:
+   - if the existing user is a client belonging to the same brokerage and is not already linked to another incompatible case, safely reuse that client account rather than creating a duplicate user.
+   - if the existing email belongs to a non-client role or belongs to another brokerage, return a clear conflict response.
+   - do not move an existing user between brokerages.
+
+15. If the lead has already been converted:
+   - do not create another client.
+   - return a conflict response with enough information for the caller to understand that the lead is already converted.
+
+16. On successful conversion:
+   - set lead.clientId
+   - set lead.convertedAt
+   - update the lead status to APPLICATION if appropriate for the existing pipeline.
+   - increment the lead version using the existing concurrency/version approach.
+   - preserve the existing brokerageId.
+
+17. The conversion should be performed safely so that a client account is not accidentally created multiple times if two requests happen concurrently.
+   Use a database-safe approach appropriate for the existing MongoDB/Mongoose architecture.
+   Do not introduce unnecessary distributed locking.
+
+18. Create a client-only endpoint:
+   GET /api/client/case
+
+19. This endpoint requires authentication and client role.
+
+20. The endpoint must return the authenticated client's own case/lead information only.
+
+21. Do not accept a leadId or clientId from the client request for this endpoint.
+   The authenticated user's ID must determine which case is returned.
+
+22. The returned case should contain useful MVP information such as:
+   - lead/client name
+   - email
+   - phone if appropriate
+   - current pipeline status
+   - brokerage information needed by the client portal
+   - convertedAt
+
+23. Never return:
+   - passwordHash
+   - authentication tokens
+   - internal secrets
+   - unrelated users' data.
+
+24. Reuse the existing /api/auth/login and /api/auth/me authentication system.
+   Do not create a second authentication mechanism.
+
+25. If a client has no linked case, return a clean 404 response.
+
+26. Keep the implementation focused.
+   Do not implement:
+   - document uploads
+   - document processing
+   - email invitations
+   - password reset
+   - frontend UI
+   - client notifications
+   - OAuth
+
+27. Reuse existing services/utilities where possible.
+   Do not duplicate password hashing or email normalization logic unnecessarily.
+
+28. Add appropriate validation and error handling:
+   - invalid lead ID -> 400
+   - lead not found -> 404
+   - missing email -> 400
+   - already converted -> 409
+   - conflicting existing user -> 409
+   - unauthorized role -> 403
+   - unauthenticated -> 401
+
+29. Preserve existing lead CRUD, Tally webhook, Socket.IO, authentication, and tenant isolation behavior.
+
+30. Run syntax checks and application import/startup checks after implementation.
+
+Return a concise summary of:
+- files created/changed
+- lead/client relationship
+- conversion flow
+- concurrency protection
+- client case authorization
+- validation/error handling
+- verification performed
+
+## Prompt 11
+
+Implement the LeadFlow client document management system using Cloudflare R2 for file storage and a background document-checking workflow.
+
+Context:
+- LeadFlow is a MERN stack application for a multi-tenant mortgage brokerage CRM.
+- Backend uses Node.js, Express.js, MongoDB, and Mongoose.
+- Architecture: Route -> Controller -> Service -> Model/DB.
+- Controllers must remain thin.
+- Authentication uses JWT stored in an HTTP-only cookie.
+- Roles:
+  platformAdmin
+  brokerageAdmin
+  advisor
+  client
+- Multi-tenancy is mandatory.
+- Lead-to-client conversion already exists.
+- A Lead has a clientId relationship.
+- Client users can access their own case through GET /api/client/case.
+- Cloudflare R2 is the chosen object storage provider.
+- Actual document files must NOT be stored in MongoDB.
+- MongoDB should store document metadata and processing status.
+- Do not implement document AI or real OCR. The assignment allows fake, slow, sometimes-failing background document checking.
+
+Cloudflare R2 configuration:
+
+Add these environment variables to server/.env.example:
+
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET_NAME=
+R2_ENDPOINT=
+
+Do not add real credentials to source control.
+Do not log R2 credentials.
+
+Requirements:
+
+1. Add the AWS S3-compatible SDK required to communicate with Cloudflare R2.
+
+2. Create a focused R2 storage service under:
+   server/src/services/
+
+3. Configure the R2 client using environment variables.
+
+4. Keep the R2 bucket private.
+   Do not make uploaded documents publicly accessible.
+
+5. Create a Document model with at minimum:
+   - brokerageId
+   - clientId
+   - leadId
+   - uploadedBy
+   - originalName
+   - storageKey
+   - mimeType
+   - size
+   - status
+   - failureReason
+   - checkedAt
+   - timestamps
+
+6. Document statuses must be:
+   UPLOADED
+   PROCESSING
+   APPROVED
+   FAILED
+
+7. Add useful indexes for:
+   - brokerageId
+   - clientId
+   - leadId
+   - status
+
+8. Create a client document upload endpoint:
+   POST /api/client/documents
+
+9. The endpoint must require authentication and the client role.
+
+10. The client must NOT provide:
+    - brokerageId
+    - clientId
+    - uploadedBy
+    - storageKey
+    - status
+
+11. Determine the client and brokerage exclusively from the authenticated user and their linked case.
+
+12. A client without a linked case must receive 404.
+
+13. Validate uploads:
+    - allow common mortgage-document formats such as PDF, JPG, JPEG, and PNG.
+    - enforce a reasonable maximum file size suitable for the MVP.
+    - reject unsupported MIME types.
+    - do not trust only the filename extension.
+
+14. Store the actual file in Cloudflare R2.
+
+15. Generate a unique storage key so one client cannot overwrite another client's document accidentally.
+
+16. Do not expose the R2 secret or bucket credentials to the frontend.
+
+17. Store only metadata in MongoDB:
+    - original filename
+    - storage key
+    - MIME type
+    - size
+    - client/lead/brokerage references
+    - status
+    - timestamps
+
+18. After a successful upload:
+    - create the Document record with status UPLOADED.
+    - start the background document-checking process.
+
+19. Implement a lightweight background job mechanism appropriate for this MVP.
+    Do not introduce Redis/BullMQ unless genuinely necessary.
+    A simple in-process background worker/service is acceptable for the assignment.
+
+20. The background checker should:
+    - change status from UPLOADED to PROCESSING.
+    - wait/simulate slow processing.
+    - sometimes succeed with APPROVED.
+    - sometimes fail with FAILED.
+    - store failureReason when failed.
+    - store checkedAt when processing completes.
+
+21. Make the simulated failure deterministic enough for testing where practical, but do not make every document fail or succeed.
+
+22. The HTTP upload request must NOT wait for the simulated document checking to finish.
+
+23. If the Node process restarts, in-progress in-memory jobs may be lost.
+    This limitation is acceptable for this MVP, but keep the code structured so a real queue could replace it later.
+
+24. Create a client endpoint:
+    GET /api/client/documents
+
+25. It must return only documents belonging to the authenticated client's own case.
+
+26. Do not accept clientId or brokerageId from the request query/body to determine ownership.
+
+27. Create a document status endpoint:
+    GET /api/client/documents/:id
+
+28. It must verify that the document belongs to the authenticated client before returning it.
+
+29. Clients must never be able to access another client's document metadata.
+
+30. For document downloads, do NOT make the R2 bucket public.
+    If implementing a download endpoint, generate a short-lived signed URL from the backend after verifying ownership.
+
+31. Create an advisor/brokerage-admin endpoint to view documents for a lead/client:
+    GET /api/leads/:leadId/documents
+
+32. Only advisor, brokerageAdmin, and platformAdmin may access that endpoint.
+
+33. Preserve tenant isolation:
+    - brokerage users may only access documents belonging to their brokerage.
+    - platformAdmin may access across brokerages according to existing platform-admin behavior.
+    - cross-tenant document IDs must not expose data.
+
+34. When a client uploads a document, emit a Socket.IO event after the Document record is successfully created:
+    document:updated
+
+35. Emit the event only to the relevant brokerage room.
+
+36. When the background status changes:
+    PROCESSING -> APPROVED
+    or
+    PROCESSING -> FAILED
+
+    emit another document:updated event to the same brokerage room.
+
+37. Keep Socket.IO event names centralized with the existing socket constants.
+
+38. Do not implement:
+    - OCR
+    - AI document analysis
+    - real bank document validation
+    - email notifications
+    - tasks
+    - frontend UI
+    - Redis/BullMQ
+    - document versioning
+    - document deletion
+    - public R2 access
+
+39. Handle failures safely:
+    - if R2 upload fails, do not create a successful document record.
+    - if MongoDB document creation fails after an R2 upload, attempt to clean up the uploaded R2 object.
+    - background processing failures should result in FAILED status rather than crashing the server.
+
+40. Keep controllers thin and put storage/background/document logic in services.
+
+41. Preserve all existing authentication, Lead CRUD, Tally webhook, Socket.IO, tenant isolation, and lead-to-client functionality.
+
+42. Run syntax checks and application import/startup checks after implementation.
+
+Return a concise summary of:
+- files created/changed
+- R2 integration
+- document metadata model
+- upload flow
+- background processing approach
+- authorization/tenant isolation
+- Socket.IO document events
+- verification performed
+
+## Prompt 12
+
+
+
+##
