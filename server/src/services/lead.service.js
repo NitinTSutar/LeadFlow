@@ -16,7 +16,12 @@ function assertObjectId(value, field = "id") {
 async function validateAdvisor(assignedAdvisorId, brokerageId) {
   if (assignedAdvisorId == null || assignedAdvisorId === "") return null;
   assertObjectId(assignedAdvisorId, "advisor");
-  const advisor = await User.findOne({ _id: assignedAdvisorId, brokerageId, role: "advisor" }).select("_id");
+  const advisor = await User.findOne({
+    _id: assignedAdvisorId,
+    brokerageId,
+    role: "advisor",
+    $or: [{ isActive: true }, { isActive: { $exists: false } }],
+  }).select("_id");
   if (!advisor) throw new Error("INVALID_ADVISOR");
   return advisor._id;
 }

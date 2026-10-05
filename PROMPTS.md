@@ -1475,6 +1475,179 @@ Return a concise summary of:
 
 ## Prompt 12
 
+Implement advisor management and advisor workload APIs for LeadFlow.
 
+Context:
+- LeadFlow is a MERN stack application for a multi-tenant mortgage brokerage CRM.
+- Backend uses Node.js, Express.js, MongoDB, and Mongoose.
+- Architecture: Route -> Controller -> Service -> Model/DB.
+- Controllers must remain thin.
+- Existing roles:
+  platformAdmin
+  brokerageAdmin
+  advisor
+  client
+- Existing authentication uses JWT in an HTTP-only cookie.
+- Existing User model already supports the advisor role.
+- Existing Lead model has:
+  - brokerageId
+  - assignedAdvisorId
+  - status
+- Existing Lead statuses:
+  NEW, CONTACTED, QUALIFIED, APPLICATION, WON, LOST.
+- Existing tenant isolation and RBAC middleware/utilities must be reused.
+- Brokerage management already exists.
+- Lead assignment validation already exists in the lead service.
+- Do not modify previous PROMPTS.md entries.
 
-##
+Goal:
+Allow brokerage admins to manage advisors within their brokerage and provide advisor workload information for lead assignment.
+
+Requirements:
+
+1. Create advisor management APIs:
+
+   POST /api/brokerages/:id/advisors
+   GET  /api/brokerages/:id/advisors
+   GET  /api/brokerages/:id/advisors/:advisorId
+   PATCH /api/brokerages/:id/advisors/:advisorId
+
+2. Only brokerageAdmin and platformAdmin may manage advisors.
+
+3. Brokerage Admin:
+   - may only manage advisors belonging to their own brokerage.
+   - must not be able to create or modify advisors in another brokerage even if another brokerage ID is supplied in the URL.
+   - must not be able to change an advisor's brokerageId.
+
+4. PlatformAdmin:
+   - may manage advisors across brokerages.
+   - brokerageId must come from the URL and must refer to an existing brokerage.
+
+5. Advisor creation must accept:
+   - name
+   - email
+   - password
+
+6. Advisor creation must:
+   - normalize email
+   - hash password using existing bcryptjs utilities
+   - set role = "advisor"
+   - set brokerageId from the authorized brokerage context
+   - never trust role or brokerageId from request body
+   - never store plaintext passwords
+
+7. Validate:
+   - name: required, trimmed, 2–120 characters
+   - email: valid and normalized
+   - password: required with a reasonable minimum length
+   - brokerage must exist
+
+8. Duplicate email must return 409.
+
+9. Do not allow an existing user with another role to be silently converted into an advisor.
+
+10. Advisor list endpoint should return safe user information only:
+    - id
+    - name
+    - email
+    - role
+    - brokerageId
+    - active case count
+
+11. Never return passwordHash.
+
+12. Implement advisor active case count.
+
+    An active case is a lead assigned to that advisor whose status is NOT:
+    WON
+    LOST
+
+13. The active case count must be calculated from the Lead collection rather than stored as a manually maintained counter.
+
+14. Advisor list should provide workload information in a form suitable for a lead-assignment dropdown, for example:
+
+    {
+      "id": "...",
+      "name": "Nitin",
+      "activeCaseCount": 3
+    }
+
+15. Only leads belonging to the same brokerage should be counted for a brokerage advisor.
+
+16. Advisor detail endpoint should also return the advisor's active case count.
+
+17. PATCH advisor should support reasonable profile updates such as:
+    - name
+    - email
+    - password
+    - active/inactive state if the existing User model supports it
+
+    Do not allow changing:
+    - role
+    - brokerageId
+    - user ID
+
+18. If an active/inactive field does not already exist on User, add a minimal `isActive` boolean with default true.
+
+19. Inactive advisors:
+    - remain in the database
+    - remain associated with historical leads
+    - should not be presented as available for new lead assignment.
+
+20. Update lead assignment validation so a lead cannot be newly assigned to an inactive advisor.
+
+21. Do not automatically reassign existing leads when an advisor becomes inactive.
+
+22. Add an endpoint specifically for available advisors for assignment:
+
+    GET /api/brokerages/:id/advisors/available
+
+    It should return only active advisors in the authorized brokerage, including:
+    - id
+    - name
+    - activeCaseCount
+
+23. Preserve tenant isolation:
+    - brokerageAdmin can only access their own brokerage's advisors.
+    - cross-tenant advisor IDs must not expose data.
+    - platformAdmin may access across brokerages.
+
+24. Handle invalid IDs and errors consistently:
+    - invalid brokerage ID -> 400
+    - invalid advisor ID -> 400
+    - brokerage not found -> 404
+    - advisor not found -> 404
+    - duplicate email -> 409
+    - unauthorized role -> 403
+    - unauthenticated -> 401
+    - validation errors -> 400
+
+25. Reuse existing email normalization, authentication, password hashing, tenant filtering, and role utilities where possible.
+
+26. Do not add frontend code.
+
+27. Do not implement tasks, email templates, email sending, dashboard, or unrelated features in this prompt.
+
+28. Preserve existing:
+    - authentication
+    - brokerage management
+    - lead CRUD
+    - Tally webhook
+    - Socket.IO
+    - lead status transitions
+    - lead-to-client conversion
+    - document management
+    - tenant isolation
+
+29. Run syntax checks and application import/startup checks after implementation.
+
+Return a concise summary of:
+- files created/changed
+- advisor management endpoints
+- authorization and tenant isolation
+- active case count logic
+- inactive advisor behavior
+- lead assignment changes
+- verification performed
+
+## Prompt 13

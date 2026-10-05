@@ -19,6 +19,7 @@ export function toSafeUser(user) {
     email: user.email,
     role: user.role,
     brokerageId: user.brokerageId?.toString() || null,
+    isActive: user.isActive !== false,
   };
 }
 

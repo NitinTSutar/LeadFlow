@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema(
     },
     passwordHash: { type: String, required: true, select: false },
     role: { type: String, enum: USER_ROLES, required: true },
+    isActive: { type: Boolean, default: true, index: true },
     brokerageId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Brokerage",
