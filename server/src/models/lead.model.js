@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { normalizeLeadEmail, normalizeLeadPhone } from "../utils/lead-identity.js";
 
 export const LEAD_STATUSES = ["NEW", "CONTACTED", "QUALIFIED", "APPLICATION", "WON", "LOST"];
 
@@ -33,13 +34,15 @@ const leadSchema = new mongoose.Schema(
 );
 
 leadSchema.pre("validate", function normalizeContactFields() {
-  this.normalizedEmail = this.email?.trim().toLowerCase() || undefined;
-  this.normalizedPhone = this.phone?.replace(/[^\d+]/g, "") || undefined;
+  this.normalizedEmail = normalizeLeadEmail(this.email) || undefined;
+  this.normalizedPhone = normalizeLeadPhone(this.phone) || undefined;
 });
 
 leadSchema.index({ brokerageId: 1, createdAt: -1 });
 leadSchema.index({ brokerageId: 1, status: 1, createdAt: -1 });
 leadSchema.index({ brokerageId: 1, assignedAdvisorId: 1, createdAt: -1 });
+leadSchema.index({ brokerageId: 1, normalizedEmail: 1 });
+leadSchema.index({ brokerageId: 1, normalizedPhone: 1 });
 
 const Lead = mongoose.model("Lead", leadSchema);
 

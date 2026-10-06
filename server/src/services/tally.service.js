@@ -3,6 +3,7 @@ import TallyIntegration from "../models/tally-integration.model.js";
 import ProcessedWebhookEvent from "../models/processed-webhook-event.model.js";
 import Lead from "../models/lead.model.js";
 import { config } from "../config/env.js";
+import { normalizeLeadEmail, normalizeLeadPhone } from "../utils/lead-identity.js";
 
 export function verifyTallySignature(payload, signature) {
   if (!config.tallyWebhookSecret || typeof signature !== "string") return false;
@@ -16,14 +17,6 @@ export function verifyTallySignature(payload, signature) {
 
 function normalizeLabel(label) {
   return String(label || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function normalizeEmail(email) {
-  return typeof email === "string" ? email.trim().toLowerCase() : "";
-}
-
-function normalizePhone(phone) {
-  return typeof phone === "string" ? phone.replace(/[^\d+]/g, "") : "";
 }
 
 function valueAsString(value) {
@@ -83,17 +76,9 @@ export async function processTallyWebhook(payload) {
   const mapped = mapTallyFields(payload.data.fields);
   if (!mapped.firstName || !mapped.lastName || !mapped.email || !mapped.phone) throw malformed("Required lead fields are missing.");
 
-  const normalizedEmail = normalizeEmail(mapped.email);
-  const normalizedPhone = normalizePhone(mapped.phone);
-  const duplicate = await Lead.findOne({
-    brokerageId: integration.brokerageId,
-    $or: [
-      { normalizedEmail },
-      { email: normalizedEmail },
-      { normalizedPhone },
-      { phone: normalizedPhone },
-    ],
-  });
+  const normalizedEmail = normalizeLeadEmail(mapped.email);
+  const normalizedPhone = normalizeLeadPhone(mapped.phone);
+  const duplicate = await Lead.findOne({ brokerageId: integration.brokerageId, $or: [{ normalizedEmail }, { normalizedPhone }] });
 
   if (duplicate) {
     await markProcessed({ eventId, eventType: payload.eventType, formId, processedAt: new Date() });

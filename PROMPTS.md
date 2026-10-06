@@ -2253,3 +2253,250 @@ Return a concise summary of:
 - verification performed
 
 ## Prompt 16
+
+Implement and fix tenant-scoped duplicate lead detection in LeadFlow.
+
+Context:
+- LeadFlow is a MERN stack multi-tenant mortgage brokerage CRM.
+- Backend uses Node.js, Express.js, MongoDB, and Mongoose.
+- Architecture: Route -> Controller -> Service -> Model/DB.
+- Controllers must remain thin.
+- Existing roles:
+  platformAdmin
+  brokerageAdmin
+  advisor
+  client
+- Authentication uses JWT in an HTTP-only cookie.
+- Multi-tenancy is mandatory.
+
+Existing Lead model contains:
+- brokerageId
+- firstName
+- lastName
+- email
+- phone
+- normalizedEmail
+- normalizedPhone
+- source
+- status
+- assignedAdvisorId
+- clientId
+- convertedAt
+- version
+- timestamps
+
+Existing duplicate-related behavior:
+- normalizedEmail is generated from email using trim + lowercase.
+- normalizedPhone is generated from phone by keeping digits and an optional leading +.
+- The current createLead service does not yet perform a duplicate lookup.
+- Duplicate detection is required for leads.
+
+Important:
+- Do not modify previous PROMPTS.md entries.
+- Do not redesign the Lead model unnecessarily.
+- Preserve all existing authentication, RBAC, tenant isolation, pipeline, Tally, Socket.IO, client conversion, documents, advisor, task, email, and dashboard behavior.
+
+Goal:
+Before creating a new Lead, detect whether the same person is already known within the same brokerage.
+
+Requirements:
+
+1. Update the manual Lead creation flow:
+
+   POST /api/leads
+
+   Before creating a new Lead, check for an existing Lead belonging to the authenticated user's brokerage.
+
+2. Duplicate matching rules:
+
+   A lead is considered a duplicate when either:
+
+   - normalizedEmail matches an existing lead in the same brokerage
+   OR
+   - normalizedPhone matches an existing lead in the same brokerage.
+
+3. Email matching:
+   - Normalize by trim + lowercase.
+   - Do not perform case-sensitive duplicate checks.
+
+4. Phone matching:
+   - Use the existing normalizedPhone behavior.
+   - Do not treat an absent/empty phone value as a duplicate.
+
+5. Missing fields:
+   - If only email is provided, check email.
+   - If only phone is provided, check phone.
+   - If neither is provided, do not perform a duplicate contact lookup.
+
+6. Tenant isolation:
+   - Duplicate detection must ALWAYS include brokerageId.
+   - A matching email/phone belonging to Brokerage A must not prevent creation of the same person in Brokerage B.
+   - Never perform a global email or phone duplicate lookup.
+
+7. If a duplicate is found:
+   - Do not create a new Lead.
+   - Return HTTP 409 Conflict.
+   - Return a clear response such as:
+
+     {
+       "message": "Duplicate lead detected.",
+       "duplicateLeadId": "<existing lead id>"
+     }
+
+   - Do not expose unnecessary information about the existing lead.
+
+8. Check both email and phone when both are supplied.
+   - If either matches, treat it as a duplicate.
+   - Returning the existing lead ID is sufficient.
+
+9. Keep duplicate detection in the service layer.
+   - Do not put business logic in the controller.
+   - Reuse the existing lead service architecture.
+
+10. Performance:
+    - Use normalized fields for the lookup.
+    - Scope the query by brokerageId.
+    - Use an efficient MongoDB query.
+    - Avoid loading all brokerage leads into application memory.
+
+11. Database indexes:
+    - Preserve the existing indexes.
+    - Add or adjust indexes only if useful for the brokerage-scoped duplicate lookup.
+    - If adding indexes, prefer compound indexes involving brokerageId with normalizedEmail and normalizedPhone.
+    - Do not make email or phone globally unique.
+    - Do not make normalizedEmail or normalizedPhone globally unique.
+
+12. Race-condition consideration:
+    - Consider the possibility that two identical lead creation requests arrive at nearly the same time.
+    - Avoid introducing an overly complex distributed locking system.
+    - If the implementation can safely enforce brokerage-scoped uniqueness at the database level without breaking the requirement that duplicate matching is email OR phone, do so.
+    - Otherwise, keep the normal lookup-based MVP implementation and clearly document the remaining race-condition limitation in the implementation summary.
+
+13. Tally integration:
+    - Inspect the existing Tally lead ingestion flow.
+    - It already has duplicate-person detection.
+    - Ensure its duplicate matching remains brokerage-scoped and consistent with the manual Lead creation rules:
+      normalized email OR normalized phone.
+    - Do not break Tally webhook idempotency.
+    - Do not create a second Lead when the same Tally event/person is received.
+
+14. Important distinction:
+    - Tally webhook event idempotency and duplicate-person detection are separate concerns.
+    - Keep both mechanisms working.
+
+15. Do not change pipeline status behavior.
+    - A duplicate request must not trigger:
+      - pipeline updates
+      - task triggers
+      - email triggers
+      - Socket.IO lead updates
+      - client conversion
+    - Since no new Lead is created, no downstream Lead-created behavior should occur.
+
+16. Error handling:
+    - Add appropriate controller error handling for the new duplicate error.
+    - Return 409 Conflict for duplicate detection.
+    - Preserve existing validation/error behavior.
+
+17. Do not implement:
+    - fuzzy matching
+    - name similarity matching
+    - address matching
+    - AI duplicate detection
+    - global deduplication
+    - merging leads
+    - automatic lead deletion
+    - Redis
+    - BullMQ
+
+18. Verification:
+    Verify at minimum:
+
+   Test A:
+   Brokerage A already has:
+   email = tenant.a@test.com
+
+   Create another lead in Brokerage A with:
+   email = tenant.a@test.com
+   different phone
+
+   Expected:
+   409 Duplicate lead detected.
+   No new Lead created.
+
+   Test B:
+   Brokerage A already has:
+   phone = 9000000001
+
+   Create another lead in Brokerage A with:
+   different email
+   phone = 9000000001
+
+   Expected:
+   409 Duplicate lead detected.
+   No new Lead created.
+
+   Test C:
+   Brokerage A has:
+   email = tenant.a@test.com
+
+   Brokerage B creates:
+   email = tenant.a@test.com
+
+   Expected:
+   Lead creation succeeds.
+   Tenant A's lead does not affect Tenant B.
+
+   Test D:
+   Create a lead without email and with a unique phone.
+
+   Expected:
+   Lead creation succeeds.
+
+   Test E:
+   Create a lead without phone and with a unique email.
+
+   Expected:
+   Lead creation succeeds.
+
+   Test F:
+   Create a lead with neither email nor phone.
+
+   Expected:
+   Lead creation follows existing validation/business rules and does not perform a duplicate lookup.
+
+   Test G:
+   Send the same Tally event twice.
+
+   Expected:
+   Existing Tally idempotency behavior remains intact.
+
+   Test H:
+   Send a Tally lead with an email or phone matching an existing Lead in the same brokerage.
+
+   Expected:
+   Existing duplicate-person behavior remains intact and no duplicate Lead is created.
+
+19. Inspect the existing code before modifying it.
+    Make the smallest safe changes necessary.
+
+20. Run:
+    - JavaScript syntax checks
+    - application import/startup check
+    - relevant API verification
+    - any existing tests if present
+
+21. Do not modify frontend files.
+
+Return a concise summary of:
+- root cause of the duplicate creation bug
+- files changed
+- duplicate matching logic
+- tenant isolation behavior
+- 409 response behavior
+- database indexes changed
+- Tally behavior preserved
+- race-condition handling/trade-off
+- verification performed
+
+## Prompt 17 

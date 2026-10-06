@@ -1,6 +1,7 @@
 import { createLead, deleteLead, getLead, listLeads, updateLead } from "../services/lead.service.js";
 
 function handleServiceError(error, res) {
+  if (error.message === "DUPLICATE_LEAD") return res.status(409).json({ message: "Duplicate lead detected.", duplicateLeadId: error.duplicateLeadId });
   if (error.message === "INVALID_ID") return res.status(400).json({ message: "Invalid lead ID." });
   if (error.message === "INVALID_ADVISOR" || error.message === "INVALID_ADVISOR_ID") {
     return res.status(422).json({ message: "Invalid advisor assignment." });

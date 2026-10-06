@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Lead, { LEAD_STATUSES } from "../models/lead.model.js";
 import User from "../models/user.model.js";
 import { brokerageFilter } from "../middleware/tenant.middleware.js";
+import { normalizeLeadEmail, normalizeLeadPhone } from "../utils/lead-identity.js";
 
 const writableFields = ["firstName", "lastName", "email", "phone", "source", "assignedAdvisorId", "notes"];
 
@@ -60,6 +61,19 @@ export async function getLead(user, leadId) {
 
 export async function createLead(user, data) {
   if (!user.brokerageId) throw new Error("BROKERAGE_CONTEXT_REQUIRED");
+  const normalizedEmail = normalizeLeadEmail(data.email);
+  const normalizedPhone = normalizeLeadPhone(data.phone);
+  const duplicateConditions = [];
+  if (normalizedEmail) duplicateConditions.push({ normalizedEmail });
+  if (normalizedPhone) duplicateConditions.push({ normalizedPhone });
+  if (duplicateConditions.length > 0) {
+    const duplicate = await Lead.findOne({ brokerageId: user.brokerageId, $or: duplicateConditions }).select("_id");
+    if (duplicate) {
+      const error = new Error("DUPLICATE_LEAD");
+      error.duplicateLeadId = duplicate._id;
+      throw error;
+    }
+  }
   const assignedAdvisorId = await validateAdvisor(data.assignedAdvisorId, user.brokerageId);
   const lead = new Lead({
     brokerageId: user.brokerageId,
