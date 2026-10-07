@@ -3711,3 +3711,279 @@ At the end report:
 - manual tests remaining
 
 ## Prompt 28
+
+Implement the LeadFlow Client Portal and Document Management frontend.
+
+IMPORTANT:
+- Work ONLY inside client/.
+- Do NOT modify server/.
+- Use the existing LeadFlow React, design-craft, and tailwind-best-practices skills.
+- Use existing backend APIs exactly. Do not invent endpoints.
+- Use TanStack Query for server state.
+- Do not add unnecessary dependencies.
+- Do not implement Socket.IO yet.
+- Do not implement advanced document preview/viewer functionality.
+- Do not commit.
+
+BACKEND CONTRACT
+
+Client case:
+GET {{base_url}}/api/client/case
+
+Client documents:
+GET  {{base_url}}/api/client/documents
+GET  {{base_url}}/api/client/documents/:id
+POST {{base_url}}/api/client/documents
+
+The upload endpoint expects multipart/form-data with the file field used by the existing backend contract.
+
+Supported backend document statuses:
+- UPLOADED
+- PROCESSING
+- APPROVED
+- FAILED
+
+The backend performs document processing asynchronously.
+
+CLIENT ROUTES
+
+Implement:
+
+/client/case
+/client/documents
+
+These routes must only be accessible to authenticated users with role `client`.
+
+Non-client users must not be able to access the client portal.
+
+CLIENT CASE PAGE
+
+Build a useful `/client/case` page.
+
+Load:
+GET {{base_url}}/api/client/case
+
+Display the actual case information returned by the backend.
+
+Do not invent fields that are not returned by the API.
+
+Where appropriate show:
+- lead/client name
+- email
+- phone
+- current pipeline status
+- assigned advisor
+- case information available from the API
+
+If the backend returns a 404 because no case is linked:
+show a clear empty state such as:
+"No active case is linked to this account."
+
+DOCUMENTS PAGE
+
+Build `/client/documents`.
+
+Load:
+GET {{base_url}}/api/client/documents
+
+Display uploaded documents with:
+- original filename
+- status
+- upload date
+- checked date when available
+- failure reason when available
+
+Use clear status badges.
+
+Status presentation:
+
+UPLOADED:
+"Uploaded"
+
+PROCESSING:
+"Checking..."
+
+APPROVED:
+"Approved"
+
+FAILED:
+"Failed"
+
+FAILED documents should display the backend-provided failure reason when available.
+
+DOCUMENT UPLOAD
+
+Provide a clear upload area/button.
+
+Use the existing backend requirements:
+- PDF
+- JPG/JPEG
+- PNG
+- maximum 10MB
+
+The backend remains the source of truth for validation.
+
+The frontend may provide helpful client-side validation for:
+- file type
+- file size
+
+But it must still correctly handle backend validation errors.
+
+Upload using:
+POST {{base_url}}/api/client/documents
+
+Use multipart/form-data.
+
+Do not manually set an incorrect Content-Type boundary if Axios/browser can handle it automatically.
+
+After successful upload:
+- invalidate/refetch the documents query
+- show a success message
+- reset the file input
+
+IMPORTANT:
+The upload request should not wait for the background document check to finish.
+
+The UI should immediately show the newly uploaded document as:
+UPLOADED or whatever status the backend returns.
+
+DOCUMENT PROCESSING UX
+
+Because processing happens in the backend asynchronously, the page should make the state understandable.
+
+For now, without Socket.IO:
+- use TanStack Query refetching/polling while documents have status UPLOADED or PROCESSING
+- stop polling when all documents reach terminal states APPROVED/FAILED
+- do not poll excessively
+- keep the implementation simple
+
+Use a reasonable polling interval such as 2–3 seconds.
+
+Do not introduce a separate global polling system.
+
+DOCUMENT DETAIL
+
+If useful, allow clicking a document to view basic metadata using:
+
+GET {{base_url}}/api/client/documents/:id
+
+Do not build a complex document viewer.
+
+Do not expose private R2 URLs unless the backend already provides a safe URL.
+
+Do not attempt to access R2 directly from the browser.
+
+SECURITY / ROLE ISOLATION
+
+Client APIs derive the authenticated client from the HTTP-only JWT cookie.
+
+Do NOT send:
+- clientId
+- brokerageId
+- leadId
+
+from the frontend unless an endpoint explicitly requires it.
+
+Do not allow clients to browse another client's documents.
+
+The backend remains responsible for tenant isolation.
+
+UX
+
+Client portal should feel different from the internal CRM while still using the same LeadFlow visual language.
+
+Create:
+- clean client header
+- clear case summary
+- document checklist/upload area
+- document status list
+- helpful empty states
+- loading states
+- error states
+
+Keep it simple and professional.
+
+Avoid:
+- excessive animations
+- fake document categories
+- fake progress percentages
+- fake AI verification claims
+- unnecessary dashboards
+
+DOCUMENT UPLOAD ACCESSIBILITY
+
+- accessible file input
+- clear supported-format text
+- visible upload progress/loading state
+- disable upload action while uploading
+- keyboard accessible controls
+- useful error messages
+
+API ERROR HANDLING
+
+Handle:
+401
+403
+404
+409
+422
+500
+
+Do not expose raw Axios errors.
+
+Use the existing error handling patterns from the frontend foundation.
+
+TANSTACK QUERY
+
+Use stable query keys such as:
+['client', 'case']
+['client', 'documents']
+['client', 'document', documentId]
+
+Use query invalidation/refetching after upload.
+
+Do not copy server state into Zustand.
+
+Avoid unnecessary useEffect.
+
+ROLE NAVIGATION
+
+For client users:
+- show Client Case
+- show Documents
+- hide CRM dashboard/leads/tasks/automation navigation
+
+For brokerage users:
+- preserve the existing CRM navigation
+- do not expose client portal navigation as their primary navigation
+
+Do not break existing role-based routing.
+
+VERIFICATION
+
+Run:
+npm run build
+
+Also verify:
+- client login still works
+- /client/case loads actual backend case data
+- /client/documents loads actual documents
+- uploading a valid PDF works
+- invalid file types are rejected clearly
+- files above 10MB are rejected clearly
+- newly uploaded documents appear immediately
+- PROCESSING state is visible while background checking runs
+- APPROVED/FAILED state eventually appears
+- FAILED reason is displayed when provided
+- non-client users cannot access client routes
+- no server files changed
+
+At the end report:
+- files changed
+- routes added/updated
+- API endpoints used
+- polling behavior
+- build result
+- manual tests remaining
+
+## Prompt 29

@@ -9,7 +9,9 @@ import LeadDetailPage from "../pages/LeadDetailPage.jsx";
 import TasksPage from "../pages/TasksPage.jsx";
 import EmailTemplatesPage from "../pages/EmailTemplatesPage.jsx";
 import TaskTriggersPage from "../pages/TaskTriggersPage.jsx";
-import { AdvisorsPage, ClientCasePage, ClientDocumentsPage } from "../pages/PlaceholderPages.jsx";
+import ClientCasePage from "../pages/ClientCasePage.jsx";
+import ClientDocumentsPage from "../pages/ClientDocumentsPage.jsx";
+import { AdvisorsPage } from "../pages/PlaceholderPages.jsx";
 
 function ProtectedRoute() {
   const { isAuthenticated, isInitialized } = useAuthStore();
