@@ -22,8 +22,9 @@ async function processDocument(documentId) {
   if (!document) return;
   emitDocumentUpdated(document.brokerageId, { document, status: "PROCESSING" });
 
-  await new Promise((resolve) => setTimeout(resolve, 1500));
-  const failed = documentId.toString().slice(-1).match(/[13579bdf]/i);
+  const processingSeconds = Math.max(1, Math.ceil(document.size / (1024 * 1024)));
+  await new Promise((resolve) => setTimeout(resolve, processingSeconds * 1000));
+  const failed = Math.random() < 0.1;
   const status = failed ? "FAILED" : "APPROVED";
   const failureReason = failed ? "Simulated document check failure." : undefined;
   const updated = await Document.findOneAndUpdate(

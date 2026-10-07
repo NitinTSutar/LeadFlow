@@ -67,5 +67,6 @@ export async function convertLeadToClient(user, leadId, password) {
 export async function getClientCase(userId, brokerageId) {
   return Lead.findOne({ clientId: userId, brokerageId })
     .populate("brokerageId", "name")
-    .select("firstName lastName email phone status convertedAt brokerageId clientId");
+    .populate("assignedAdvisorId", "name email")
+    .select("firstName lastName email phone status convertedAt brokerageId clientId assignedAdvisorId");
 }

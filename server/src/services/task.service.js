@@ -22,13 +22,13 @@ function withOverdue(task) {
 export async function listTasks(user, filters = {}) {
   const query = { ...taskScope(user) };
   if (filters.status) query.status = filters.status;
-  const tasks = await Task.find(query).sort({ dueAt: 1, createdAt: -1 });
+  const tasks = await Task.find(query).populate("leadId", "firstName lastName").populate("advisorId", "name email").sort({ dueAt: 1, createdAt: -1 });
   return tasks.map(withOverdue);
 }
 
 export async function getTask(user, taskId) {
   assertId(taskId);
-  const task = await Task.findOne({ _id: taskId, ...taskScope(user) });
+  const task = await Task.findOne({ _id: taskId, ...taskScope(user) }).populate("leadId", "firstName lastName").populate("advisorId", "name email");
   return task ? withOverdue(task) : null;
 }
 

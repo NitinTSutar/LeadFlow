@@ -5199,3 +5199,479 @@ Fix the document card grid spacing only.
 - Do not change APIs, document data, status logic, processing behavior, or any other functionality.
 
 ## Prompt 39
+
+Update the existing document background processing simulation. Do not change the existing upload/API architecture.
+
+Requirements:
+
+1. Processing time must be based directly on file size.
+
+Use the document size in bytes and calculate approximately:
+- 1 MB file → 1 second
+- 5 MB file → 5 seconds
+- 10 MB file → 10 seconds
+- Any file smaller than 1 MB → minimum 1 second
+- Never process for less than 1 second.
+- Respect the existing 10 MB maximum upload limit.
+
+Do not use millisecond-level processing for small files. KB-sized files should still take approximately 1 second.
+
+A simple rule is acceptable:
+processingSeconds = max(1, ceil(fileSizeInMB))
+
+2. Verify the document status flow.
+
+The backend must persist:
+UPLOADED → PROCESSING → APPROVED / FAILED
+
+Before waiting for the simulated processing delay:
+- persist the document as PROCESSING
+- emit the existing document:updated realtime event
+
+After the size-based delay:
+- transition to APPROVED or FAILED
+- persist checkedAt/failureReason as currently implemented
+- emit the existing document:updated event
+
+3. Verify the frontend actually displays PROCESSING.
+
+Inspect the existing client document UI, status badge, polling and Socket.IO behavior.
+
+If PROCESSING is already displayed correctly, preserve it.
+
+If PROCESSING is not visibly displayed:
+- add/fix the status display
+- show a clear "Processing..." label while the document is PROCESSING
+- do not show APPROVED/FAILED until the backend actually transitions to that status
+
+Do not invent a separate frontend-only processing state.
+
+4. Reduce simulated failures.
+
+The current behavior is too close to alternating APPROVED/FAILED.
+
+Change it to approximately 10% failure probability:
+- roughly 1 out of 10 documents should fail
+- roughly 9 out of 10 should succeed
+
+Use a random failure probability around 0.10 rather than alternating based on file index/name.
+
+Preserve the existing failure message:
+"Simulated document check failure."
+
+5. Keep everything else unchanged:
+- R2 upload
+- MongoDB document metadata
+- authentication/tenant isolation
+- Socket.IO events
+- polling fallback
+- document statuses
+- file validation
+- existing frontend upload behavior
+
+Do not add Redis/BullMQ or new infrastructure.
+
+After implementation:
+- run server syntax checks
+- run npm run build for the client if frontend files were changed
+- report the exact processing-time calculation and failure probability.
+
+## Prompt 40
+
+Update the LeadFlow client portal UI based on the current implementation and the issues visible in the current screenshots.
+
+This is a focused UI/UX fix. Do not change unrelated functionality, authentication, document logic, routing, or backend behavior unless a very small backend response change is genuinely required to display already-existing case information.
+
+## 1. Improve the Client "My Case" page
+
+Current `/client/case` page is too minimal. It currently shows:
+- Applicant name
+- Brokerage name
+- Email
+- Phone
+- An "Application" status badge
+
+Improve it so the client gets a clearer understanding of their current mortgage case.
+
+Show useful case information that is already available from the backend, such as:
+- Applicant name
+- Brokerage
+- Current application/case stage
+- Assigned advisor name, if available
+- A simple progress/stage indication
+- A clear "Next step" / current-stage explanation where appropriate
+
+Use the existing pipeline stages:
+NEW
+CONTACTED
+QUALIFIED
+APPLICATION
+WON
+LOST
+
+Do not invent data that the backend does not provide.
+
+If the current client case API does not expose the assigned advisor or required case-stage information, inspect the existing backend implementation and make the smallest safe change necessary to return the already-existing related data. Preserve authentication and tenant isolation.
+
+Keep the UI simple and appropriate for a client portal. Do not turn this into a large analytics/dashboard page.
+
+## 2. Fix the "Application" status badge
+
+The current "Application" badge has a visibility problem:
+- Its text colour is too similar to its background.
+- It is technically visible only when selected/highlighted.
+
+Fix the styling so the status is clearly readable with proper contrast.
+
+Important:
+- The badge is DISPLAY-ONLY.
+- It must NOT be editable.
+- It must NOT be clickable.
+- Do not add dropdowns, hover actions, edit icons, or status controls.
+- Remove any misleading pointer/edit cursor styling if present.
+
+Use the existing visual design language of LeadFlow.
+
+## 3. Add a simple case progress indicator
+
+Show the client's current position in the pipeline in a clean, non-interactive way.
+
+For example:
+New → Contacted → Qualified → Application → Won
+
+Highlight the current stage and show previous stages as completed/subdued.
+
+For LOST, clearly show that the case is closed/lost instead of treating it like a normal progress stage.
+
+This is informational only. The client must not be able to change the stage.
+
+Do not over-design this. A simple horizontal stepper/progress indicator is enough on desktop and it should remain usable on mobile.
+
+## 4. Fix the client portal sidebar height on desktop
+
+Current issue:
+The left navigation/sidebar is currently growing based on the body/content height.
+
+Because of this:
+- The sidebar extends with the page content.
+- The client name and role at the bottom (e.g. "Rahul Sharma / Client") get pushed far down.
+- The sidebar should instead occupy the viewport height.
+
+Fix the client portal layout so the left sidebar has a viewport-based height:
+- Desktop sidebar should effectively use `100vh`.
+- It should remain visually full-height even when the main page content becomes taller and scrolls.
+- The main content area should be responsible for page scrolling, not the sidebar content height.
+- Keep the client name + role anchored near the bottom of the sidebar.
+
+Do this using the existing layout structure where possible. Avoid unnecessary global layout rewrites.
+
+## 5. Mobile sidebar/header behavior
+
+On mobile, the current sidebar changes into a top navigation/header.
+
+The client identity section currently disappears when the navigation moves to the top.
+
+Fix this so the logged-in client's:
+- Name
+- Role
+
+remain visible somewhere in the mobile client portal navigation/header.
+
+It does not need to be identical to the desktop layout. A compact identity section is enough.
+
+Requirements:
+- Do not let the name/role disappear on mobile.
+- Keep navigation usable.
+- Do not make the mobile header excessively tall.
+- Preserve the existing responsive behavior and styling.
+
+## 6. Visual consistency
+
+Keep the current LeadFlow visual design:
+- existing colours
+- typography
+- spacing style
+- rounded cards
+- responsive behavior
+
+Do not introduce a new design system.
+
+Make the result feel like a polished version of the existing UI rather than a completely redesigned page.
+
+## 7. Important constraints
+
+Do NOT:
+- add new client permissions
+- allow clients to edit their case status
+- allow clients to change advisor
+- expose brokerage/tenant IDs
+- expose private R2 URLs
+- change document upload behavior
+- change authentication
+- change Socket.IO behavior
+- add unnecessary dependencies
+- over-engineer the case progress system
+
+Inspect the existing client case API and components first, then implement the smallest clean solution.
+
+Finally:
+- run the frontend build
+- fix any build/lint/runtime issues caused by these changes
+- verify desktop and mobile responsive layouts
+
+## Prompt 41
+
+Fix the mobile client portal navigation/header layout based on the current implementation and screenshot.
+
+The current mobile layout has become unnecessarily tall because the client identity section ("Rahul Sharma" + "Client") is rendered as a large full-width block below the navigation.
+
+I want the mobile navigation to be much more compact.
+
+## Mobile requirements
+
+1. Keep the LeadFlow logo/branding on the left.
+
+2. Move the logged-in client identity to the RIGHT side of the mobile navigation/header:
+   - Client name
+   - Role
+   Example:
+   [LeadFlow]                         Rahul Sharma
+                                       Client
+
+   Keep it compact and right-aligned.
+
+3. Do NOT render the client name/role as a separate large full-width section underneath the navigation.
+
+4. Remove unnecessary:
+   - large vertical padding
+   - large empty space
+   - full-width identity divider/section
+   - excessive header height
+
+5. The mobile header/navigation should occupy only the space actually required by:
+   - branding
+   - client identity
+   - navigation links
+
+6. Keep the existing mobile navigation links ("My case", "Documents") functional and visually clear.
+
+7. The mobile header should NOT use the desktop `100vh` sidebar behavior.
+
+8. Desktop behavior should remain unchanged:
+   - desktop sidebar remains viewport-height
+   - client identity stays anchored near the bottom of the desktop sidebar
+
+9. Do not change:
+   - authentication
+   - routing
+   - client case API
+   - advisor data
+   - document functionality
+   - Socket.IO
+   - backend behavior
+
+10. Do not redesign the entire client portal. This is only a responsive layout correction.
+
+Make the mobile header compact, clean and similar to a normal application navigation bar.
+
+After implementation:
+- run `npm run build`
+- verify desktop and mobile responsive behavior
+- make sure the client name and role are still visible on mobile
+- make sure no unnecessary vertical space remains
+
+## Prompt 42
+
+Fix the remaining Advisor-side UX and functionality issues in LeadFlow. Keep this focused; do not redesign unrelated parts of the application.
+
+## 1. Fix Lead search
+
+The Leads page currently has a search input, but it is not useful enough in the current implementation.
+
+Make the existing search actually filter the visible lead cards across all pipeline columns.
+
+Search should match useful lead information such as:
+- first name
+- last name
+- full name
+- email
+- phone
+
+Requirements:
+- Filtering should happen client-side using the already-loaded leads.
+- Do not add a new backend search API.
+- Search should work regardless of which pipeline column the lead is currently in.
+- If there are no matches, show a clear "No matching leads" state.
+- Add a simple clear/reset affordance if appropriate.
+- Keep the existing pipeline layout.
+
+## 2. Make the lead pipeline board work with many leads
+
+The current pipeline has one lead card in the Application column.
+
+Make sure the layout behaves correctly when many leads exist in the same stage.
+
+Requirements:
+- Multiple lead cards in the same column should stack vertically.
+- Cards must not overlap.
+- Cards must not be clipped or hidden.
+- The pipeline should remain horizontally scrollable across stages on smaller screens.
+- Individual columns can grow vertically with their cards or use a sensible internal vertical scroll if the existing layout requires it.
+- Keep the current visual style.
+- Do not replace the pipeline with a table.
+- Do not redesign the entire Leads page.
+
+The final behavior should remain usable when there are many leads in NEW, CONTACTED, QUALIFIED, APPLICATION, WON, or LOST.
+
+## 3. Fix Advisor assignment permissions/UI
+
+Important existing product rule:
+
+- Brokerage Admin can assign/reassign advisors.
+- Platform Admin can assign/reassign advisors.
+- Advisor CANNOT assign or change an advisor.
+- Client cannot assign or change an advisor.
+
+Currently the Advisor viewing Lead Detail can see an Advisor dropdown/select control.
+
+Fix this.
+
+For an Advisor viewing a lead:
+- Do NOT show an editable dropdown.
+- Do NOT allow advisor reassignment.
+- Show the currently assigned advisor as read-only information.
+- If the lead is unassigned, clearly display "Unassigned".
+- No edit cursor or misleading interactive styling.
+
+For Brokerage Admin and Platform Admin:
+- Preserve the existing advisor assignment dropdown/functionality.
+
+Do not weaken or change backend authorization. Backend authorization must remain the source of truth.
+
+## 4. Allow authorized Advisor/Admin users to open/download client documents
+
+Current issue:
+The Lead Detail page correctly displays the client's uploaded documents using:
+GET /api/leads/:leadId/documents
+
+However, the documents are currently metadata-only and clicking them does nothing.
+
+The assignment requires authorized brokerage users to be able to access the uploaded documents.
+
+Implement secure document access.
+
+Requirements:
+- Advisor assigned/authorized within the brokerage can open/download the documents for leads they are allowed to view.
+- Brokerage Admin can open/download documents for leads in their brokerage.
+- Platform Admin can access documents according to existing platform-admin permissions.
+- Client continues to have access only to their own documents.
+- Maintain strict brokerage/tenant isolation.
+- Never expose raw/private R2 credentials.
+- Do not make the R2 bucket public.
+- Do not expose permanent public URLs.
+
+Inspect the existing R2/storage service and use the existing private storage architecture.
+
+Prefer a secure short-lived signed URL or equivalent backend-controlled download/view mechanism.
+
+Add the smallest appropriate backend endpoint, for example a document download/view endpoint under the existing lead document routes, but follow the existing route architecture rather than blindly creating a duplicate.
+
+The backend must verify:
+- authenticated user
+- role
+- brokerage/tenant access
+- lead/document relationship
+
+The frontend should provide a clear "View" or "Download" action for each document.
+
+For PDF/image files:
+- Prefer opening the document in a new browser tab when practical.
+- A download action is also acceptable if that fits the existing implementation better.
+
+Do not allow access to another brokerage's document by guessing lead/document IDs.
+
+Keep the existing read-only document metadata section.
+
+## 5. Fix Task list: show names instead of IDs
+
+Current Tasks UI shows raw MongoDB IDs for:
+- lead
+- advisor
+
+Replace these with human-readable information.
+
+Tasks should display:
+- Lead name (e.g. Rahul Sharma)
+- Advisor name (e.g. Nitin Advisor)
+
+Do not display raw leadId/advisorId in the normal UI.
+
+Inspect the existing task API/service/model and use the cleanest existing relationship/population approach.
+
+Prefer populating the required lead/advisor fields in the backend rather than making one API request per task from the frontend.
+
+Preserve:
+- tenant isolation
+- advisor task visibility rules
+- brokerage admin visibility
+- platform admin visibility
+- existing task actions
+
+If a task has no advisor assigned, show "Unassigned".
+
+## 6. Fix Task due-date display
+
+Use the previously agreed UI behavior:
+
+- If a TODO task is due within the next 24 hours:
+  show a relative time such as:
+  - "Due in 2 hours"
+  - "Due in 45 minutes"
+  - "Due in 1 hour"
+
+- If the due date is more than 24 hours away:
+  show the actual date AND time.
+
+- If overdue:
+  clearly show:
+  - "Overdue by 2 hours"
+  or an equivalent readable relative format.
+
+- Completed/cancelled tasks should continue to display their appropriate completed/cancelled state rather than misleading overdue information.
+
+Use the existing dueAt value from the backend.
+
+Do not change how overdue status is calculated on the backend unless required for correctness. The existing dynamic overdue behavior should remain.
+
+## 7. Important constraints
+
+Do NOT:
+- add new dependencies unless absolutely necessary
+- redesign the entire application
+- change authentication
+- change JWT/cookie behavior
+- change tenant isolation rules
+- make R2 public
+- expose R2 credentials
+- give Advisors permission to assign Advisors
+- allow Clients to access other clients' documents
+- change document processing behavior
+- change Socket.IO architecture
+- add Redis/BullMQ
+- add unnecessary backend APIs
+
+Preserve the existing React/Vite + Node/Express + MongoDB + R2 architecture.
+
+After implementation:
+1. Run frontend build.
+2. Run server syntax checks.
+3. Verify the existing routes still work.
+4. Verify Advisor cannot change advisor assignment.
+5. Verify Brokerage Admin can still assign advisors.
+6. Verify authorized Advisor/Admin can open/download a document.
+7. Verify cross-brokerage document access is rejected.
+8. Verify task names and due dates display correctly.
+9. Verify lead search filters correctly.
+10. Verify multiple lead cards in the same pipeline stage render correctly.
+
+## Prompt 43

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import mongoose from "mongoose";
 import Document from "../models/document.model.js";
 import Lead from "../models/lead.model.js";
-import { deleteFromR2, uploadToR2 } from "./r2.service.js";
+import { deleteFromR2, getDocumentUrl, uploadToR2 } from "./r2.service.js";
 import { startDocumentCheck } from "./document-worker.service.js";
 import { brokerageFilter } from "../middleware/tenant.middleware.js";
 import { emitDocumentUpdated } from "../sockets/index.js";
@@ -72,4 +72,12 @@ export async function getClientDocument(user, documentId) {
 export async function listLeadDocuments(user, leadId) {
   assertId(leadId, "lead");
   return Document.find({ leadId, ...brokerageFilter(user) }).sort({ createdAt: -1 });
+}
+
+export async function getLeadDocumentUrl(user, leadId, documentId) {
+  assertId(leadId, "lead");
+  assertId(documentId, "document");
+  const document = await Document.findOne({ _id: documentId, leadId, ...brokerageFilter(user) }).select("storageKey mimeType originalName");
+  if (!document) return null;
+  return { url: await getDocumentUrl(document.storageKey), mimeType: document.mimeType, originalName: document.originalName };
 }
