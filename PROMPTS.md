@@ -5675,3 +5675,342 @@ After implementation:
 10. Verify multiple lead cards in the same pipeline stage render correctly.
 
 ## Prompt 43
+
+Fix a Leads pipeline card data-display bug.
+
+Current behavior:
+- Lead Detail page correctly shows Rahul Sharma assigned to "Nitin Advisor".
+- However, the Leads pipeline card incorrectly shows "UNASSIGNED".
+- Therefore the lead's assignedAdvisorId is correctly persisted; the problem is specifically in the Leads list response/data mapping or LeadsPage rendering.
+
+## Requirements
+
+1. Inspect the existing GET `/api/leads` implementation and the LeadsPage data mapping.
+
+2. Determine why a lead with a valid `assignedAdvisorId` is rendered as `UNASSIGNED` in the pipeline card.
+
+3. Fix the smallest appropriate layer:
+   - Prefer returning the assigned advisor's existing `name` (and only necessary fields) from the leads list API if the list API currently returns only the ID.
+   - Alternatively fix the frontend field mapping if the backend already provides the advisor information.
+
+4. Do NOT change the lead assignment logic.
+   The existing Lead Detail assignment behavior is already working correctly.
+
+5. Do NOT change:
+   - authentication
+   - authorization
+   - tenant isolation
+   - lead status logic
+   - version/concurrency logic
+   - advisor assignment permissions
+   - Lead Detail page behavior
+
+6. Keep the Leads card display simple:
+   - assigned advisor name when assigned
+   - "UNASSIGNED" only when `assignedAdvisorId` is actually null/missing
+
+7. Preserve platform-admin cross-brokerage behavior and brokerage tenant scoping.
+
+8. Avoid an N+1 API request from the frontend for every lead.
+   Prefer backend population/projection or an existing efficient relationship approach.
+
+9. Run:
+   - server syntax checks
+   - `npm run build`
+
+10. Verify with the current Rahul lead:
+   - Leads board should show `Nitin Advisor`
+   - Lead Detail should continue showing `Nitin Advisor`
+   - An actually unassigned lead should still show `UNASSIGNED`
+
+## Prompt 44
+
+Fix the Lead Detail assigned-advisor display for Advisor users.
+
+Current state:
+- The Leads pipeline card correctly shows "Nitin Advisor" for Rahul Sharma.
+- The database assignment is therefore correct.
+- However, when logged in as the Advisor and opening Rahul's Lead Detail page, the read-only Advisor section incorrectly displays "Unassigned".
+- The Brokerage Admin Lead Detail can show the advisor because its editable advisor dropdown separately loads the advisor list.
+
+This means the issue is specifically the Lead Detail data response/mapping for the assigned advisor.
+
+## Requirements
+
+1. Inspect:
+   - GET `/api/leads/:id`
+   - existing lead service/controller
+   - `LeadDetailPage.jsx`
+
+2. Make the Lead Detail API return the assigned advisor's existing basic information when `assignedAdvisorId` exists.
+
+Prefer:
+- populate `assignedAdvisorId`
+- select only the advisor `name` and `email` fields
+
+Do NOT return password/hash or unnecessary advisor fields.
+
+3. Preserve the existing field shape if possible so both:
+   - Brokerage Admin
+   - Advisor
+
+continue to work correctly.
+
+4. Update the frontend mapping only if required.
+
+Expected behavior:
+
+### Assigned lead
+Advisor section should display:
+
+Nitin Advisor
+advisor.a@leadflow.test
+
+or, if the current UI is intentionally name-only:
+
+Nitin Advisor
+
+### Unassigned lead
+Only then show:
+
+Unassigned
+
+5. IMPORTANT:
+Do not change the actual assignment logic.
+Do not change the database relationship.
+Do not change authorization.
+Do not change advisor permissions.
+Do not change tenant isolation.
+
+6. Preserve Brokerage Admin behavior:
+- Brokerage Admin must still get the editable advisor assignment dropdown.
+- Platform Admin must still get the editable advisor assignment dropdown.
+- Advisor must see the assignment as read-only.
+- Advisor must NOT be able to change it.
+
+7. Keep the existing Leads pipeline fix intact:
+GET `/api/leads` already correctly populates the advisor name. Do not regress that.
+
+8. Verify with Rahul Sharma:
+- Leads page → Nitin Advisor
+- Lead Detail as Advisor → Nitin Advisor
+- Lead Detail as Brokerage Admin → Nitin Advisor in assignment dropdown
+- An actually unassigned lead → Unassigned
+
+9. Run:
+- server syntax check
+- `npm run build`
+
+## Prompt 45
+
+Add an unread-style pending task count badge to the LeadFlow navigation for Advisors.
+
+## Goal
+
+When an Advisor has pending/incomplete tasks, show the number of pending tasks as a small circular notification badge next to the "Tasks" navigation item.
+
+Example:
+
+Tasks  ③
+
+If there is 1 pending task:
+
+Tasks  ①
+
+If there are no pending tasks:
+
+Tasks
+
+## Requirements
+
+1. This badge is ONLY for users with the `advisor` role.
+
+2. Count only tasks belonging to the currently authenticated advisor.
+
+3. Count only incomplete/pending tasks:
+   - status = TODO
+
+Do NOT count:
+- COMPLETED
+- CANCELLED
+
+4. If pending task count is 0:
+   - hide the badge completely.
+
+5. The count must come from the backend/current task data.
+   Do NOT hardcode it.
+   Do NOT calculate it from an incomplete/partial page of tasks if the Tasks page is paginated or otherwise limited.
+
+6. Prefer the smallest clean implementation using the existing task API/service architecture.
+   If the existing GET `/api/tasks` response already contains all advisor tasks and is suitable for this count, reuse it.
+   Otherwise add a small backend count endpoint or extend the existing task response in a clean way.
+
+7. Preserve existing task authorization:
+   - Advisor sees only their own tasks.
+   - Brokerage Admin can see brokerage tasks.
+   - Platform Admin follows existing platform permissions.
+   - Client has no task access.
+
+8. The badge should update when:
+   - an advisor completes a task
+   - a new task is automatically created by a task trigger
+   - task status changes
+   - the advisor navigates/reloads the app
+
+9. Reuse existing TanStack Query infrastructure where possible so the count stays in sync without unnecessary polling.
+
+10. If Socket.IO already emits task-related realtime events, use the existing event/query invalidation architecture where appropriate. Do NOT introduce a new realtime system just for this badge.
+
+11. Keep the badge visually small and consistent with the existing LeadFlow navbar.
+   - circular badge
+   - readable number
+   - no huge layout shift
+   - responsive on mobile
+
+12. Do not change:
+   - task trigger behavior
+   - task assignment logic
+   - task visibility rules
+   - authentication
+   - tenant isolation
+   - existing Tasks page functionality
+
+13. Handle large counts sensibly. If needed, display `99+` instead of making the navbar badge excessively wide.
+
+14. Run:
+   - server syntax checks
+   - `npm run build`
+
+15. Verify:
+   - Advisor with pending tasks sees the count.
+   - Completing a task decreases the count.
+   - Creating a new triggered task increases the count.
+   - Advisor with zero TODO tasks sees no badge.
+   - Brokerage Admin does not see an advisor-specific pending-task badge.
+
+## Prompt 46
+
+Fix the Tasks page table layout and make the columns consistently aligned.
+
+Current issue:
+The Tasks table is using flexible widths, causing long task titles/descriptions to push other columns around. In the current screenshot, Lead, Advisor, Due and Status are not consistently aligned, and task details are partially clipped.
+
+## Required column order
+
+The table must be ordered as:
+
+1. LEAD
+2. ADVISOR
+3. TASK
+4. DUE
+5. STATUS
+6. ACTION
+
+Do not change the underlying task functionality.
+
+## Layout requirements
+
+Use a consistent table/grid column structure so every task row uses exactly the same column widths.
+
+Suggested proportional layout:
+
+- Lead: ~16%
+- Advisor: ~16%
+- Task: ~32%
+- Due: ~14%
+- Status: ~12%
+- Action: ~10%
+
+Adjust the exact percentages/widths if needed to fit the existing LeadFlow design, but the important requirement is that the columns remain consistent across every row.
+
+### Lead column
+Show:
+- Lead name
+
+Do not show raw lead IDs.
+
+### Advisor column
+Show:
+- Advisor name
+
+Do not show raw advisor IDs.
+If no advisor exists, show "Unassigned".
+
+### Task column
+This column should contain the full task information:
+- Task title
+- Description
+- Source stage
+
+Do NOT allow the task description to push other columns.
+
+The task title/description may wrap to multiple lines inside the Task column, but the other columns must remain aligned.
+
+Do not truncate important task information unnecessarily.
+
+### Due column
+Show:
+- Relative due time when appropriate
+- Actual date + time when appropriate
+- Overdue state when overdue
+
+Preserve the existing due-date formatting logic.
+
+### Status column
+Show the existing status badge:
+- TODO
+- COMPLETED
+- CANCELLED
+
+Keep the badge visually consistent.
+
+### Action column
+For TODO tasks:
+- Show the existing Complete action.
+
+For completed/cancelled tasks:
+- Do not show an unnecessary Complete button.
+
+## Desktop behavior
+
+On desktop:
+- All rows must align perfectly under the column headers.
+- Column widths must remain consistent regardless of task title/description length.
+- Long task descriptions must wrap inside the Task column.
+- Do not allow content from one column to visually overflow into another column.
+
+Use a proper semantic table if the existing implementation can support it cleanly. Otherwise use a CSS grid with the exact same grid-template-columns for the header and every row.
+
+## Responsive behavior
+
+Do not squeeze six columns into an unusably narrow mobile layout.
+
+On smaller screens:
+- Keep the table horizontally scrollable if necessary.
+- Preserve the same column order.
+- Do not allow columns to overlap.
+- Make sure the full task content remains accessible.
+
+## Important
+
+Do NOT:
+- change task API behavior
+- change task assignment
+- change task visibility
+- change due-date calculation
+- change task completion behavior
+- change RBAC
+- change tenant isolation
+- add unnecessary dependencies
+- redesign the entire Tasks page
+
+Only fix the Tasks table layout/formatting.
+
+After implementation:
+- run `npm run build`
+- verify the table with the existing Rahul tasks
+- verify a long task description does not push Lead/Advisor/Due/Status columns
+- verify multiple rows remain perfectly aligned
+- verify TODO Complete button still works
+
+## Prompt 47

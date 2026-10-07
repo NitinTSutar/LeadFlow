@@ -23,10 +23,14 @@ export function connectRealtime(queryClient) {
       const leadId = payload?.document?.leadId || payload?.leadId;
       if (leadId) queryClient.invalidateQueries({ queryKey: ["lead", leadId, "documents"] });
     });
+    socket.on("task:updated", () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    });
     socket.on("connect", () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard", "pipeline"] });
       queryClient.invalidateQueries({ queryKey: ["client", "documents"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
     });
   }
   if (!socket.connected) socket.connect();

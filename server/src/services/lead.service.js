@@ -49,7 +49,7 @@ export async function listLeads(user, { page = 1, limit = 20, status, assignedAd
   }
 
   const [leads, total] = await Promise.all([
-    Lead.find(query).sort({ createdAt: -1 }).skip((safePage - 1) * safeLimit).limit(safeLimit),
+    Lead.find(query).populate("assignedAdvisorId", "name").sort({ createdAt: -1 }).skip((safePage - 1) * safeLimit).limit(safeLimit),
     Lead.countDocuments(query),
   ]);
   return { leads, pagination: { page: safePage, limit: safeLimit, total, pages: Math.ceil(total / safeLimit) } };
@@ -57,7 +57,7 @@ export async function listLeads(user, { page = 1, limit = 20, status, assignedAd
 
 export async function getLead(user, leadId) {
   assertObjectId(leadId);
-  return Lead.findOne({ _id: leadId, ...tenantQuery(user) });
+  return Lead.findOne({ _id: leadId, ...tenantQuery(user) }).populate("assignedAdvisorId", "name email");
 }
 
 export async function createLead(user, data) {
