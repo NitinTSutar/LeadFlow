@@ -6,7 +6,10 @@ import LoginPage from "../pages/LoginPage.jsx";
 import DashboardPage from "../pages/DashboardPage.jsx";
 import LeadsPage from "../pages/LeadsPage.jsx";
 import LeadDetailPage from "../pages/LeadDetailPage.jsx";
-import { TasksPage, AdvisorsPage, EmailTemplatesPage, TaskTriggersPage, ClientCasePage, ClientDocumentsPage } from "../pages/PlaceholderPages.jsx";
+import TasksPage from "../pages/TasksPage.jsx";
+import EmailTemplatesPage from "../pages/EmailTemplatesPage.jsx";
+import TaskTriggersPage from "../pages/TaskTriggersPage.jsx";
+import { AdvisorsPage, ClientCasePage, ClientDocumentsPage } from "../pages/PlaceholderPages.jsx";
 
 function ProtectedRoute() {
   const { isAuthenticated, isInitialized } = useAuthStore();

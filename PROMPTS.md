@@ -3523,3 +3523,191 @@ At the end report:
 
 
 ## Prompt 27
+
+Implement the LeadFlow Tasks and Email Automation frontend.
+
+IMPORTANT:
+- Work ONLY inside client/.
+- Do NOT modify server/.
+- Use existing backend APIs exactly; do not invent endpoints.
+- Use the existing LeadFlow React, design-craft, and tailwind-best-practices skills.
+- Use TanStack Query for server state.
+- Do not add unnecessary dependencies.
+- Do not implement Socket.IO yet.
+- Do not implement client portal/documents yet.
+- Do not commit.
+
+TASKS
+
+Create a real `/tasks` page.
+
+Backend APIs:
+GET   {{base_url}}/api/tasks
+GET   {{base_url}}/api/tasks/:id
+PATCH {{base_url}}/api/tasks/:id
+PATCH {{base_url}}/api/tasks/:id/complete
+
+Display:
+- task title
+- description
+- lead
+- advisor
+- status
+- due date
+- overdue state
+- source pipeline stage
+
+Support:
+- TODO / COMPLETED / CANCELLED
+- complete task action
+- loading/error/empty states
+- overdue tasks should be visually prominent
+- basic filtering by status
+
+Use TanStack Query and invalidate tasks after mutations.
+
+EMAIL TEMPLATES
+
+Create `/email-templates`.
+
+Backend APIs:
+GET    {{base_url}}/api/brokerages/:id/email-templates
+POST   {{base_url}}/api/brokerages/:id/email-templates
+PATCH  {{base_url}}/api/brokerages/:id/email-templates/:templateId
+DELETE {{base_url}}/api/brokerages/:id/email-templates/:templateId
+
+Only brokerage admins should see/manage this UI.
+
+Display:
+- template name
+- subject
+- stage
+- active/inactive
+- edit/delete actions
+
+Create/edit form:
+- name
+- subject
+- body
+- stage
+- active state
+
+Supported placeholders:
+{{clientName}}
+{{advisorName}}
+
+Make the placeholders easy to understand in the UI.
+
+Do not attempt to render/evaluate arbitrary expressions.
+
+Handle backend validation and conflicts clearly.
+
+TASK TRIGGERS
+
+Create `/task-triggers`.
+
+Backend APIs:
+GET    {{base_url}}/api/brokerages/:id/task-triggers
+POST   {{base_url}}/api/brokerages/:id/task-triggers
+PATCH  {{base_url}}/api/brokerages/:id/task-triggers/:triggerId
+DELETE {{base_url}}/api/brokerages/:id/task-triggers/:triggerId
+
+Only brokerage admins should manage triggers.
+
+Display:
+- pipeline stage
+- title
+- description
+- due-in minutes
+- active/inactive
+- edit/delete actions
+
+Create/edit form:
+- stage
+- title
+- description
+- dueInMinutes
+- isActive
+
+Handle HTTP 409 duplicate-trigger errors with a clear message.
+
+ROLE BEHAVIOR
+
+brokerageAdmin:
+- can access tasks
+- can manage email templates
+- can manage task triggers
+
+advisor:
+- can access their tasks
+- must not see email template/task trigger management
+
+platformAdmin:
+- preserve existing role behavior
+- do not invent additional brokerage-management APIs
+
+client:
+- must not see CRM task/template/trigger pages
+
+DESIGN
+
+Use the existing LeadFlow visual style.
+
+Keep it professional and compact:
+- tables/cards where appropriate
+- clear status badges
+- useful empty states
+- responsive layout
+- accessible forms
+- no unnecessary animations
+- no fake data
+
+API/STATE
+
+Create service modules where appropriate:
+- task.service.js
+- email-template.service.js
+- task-trigger.service.js
+
+Use stable TanStack Query keys.
+
+Do not duplicate server state into Zustand.
+
+Use the authenticated user's brokerageId where required.
+Do not hardcode brokerage IDs.
+
+ERROR HANDLING
+
+Handle:
+401
+403
+404
+409
+422
+500
+
+Never expose raw Axios errors.
+
+VERIFICATION
+
+Run:
+npm run build
+
+Verify:
+- tasks page loads real tasks
+- completing a task works
+- overdue tasks are visually distinct
+- email templates load/create/edit/delete
+- task triggers load/create/edit/delete
+- duplicate task trigger returns a useful UI error
+- role-based visibility works
+- no server files changed
+
+At the end report:
+- files changed
+- routes added/updated
+- API endpoints used
+- build result
+- manual tests remaining
+
+## Prompt 28
