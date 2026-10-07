@@ -2864,3 +2864,662 @@ At the end, report:
 Do NOT make a commit.
 
 # Prompt 25
+
+We are now starting the LeadFlow frontend.
+
+IMPORTANT:
+- Work only inside the client/ directory.
+- Do NOT modify server/ files.
+- Do NOT invent backend APIs.
+- Inspect the existing client project before making changes.
+- Follow the existing LeadFlow React skill, design-craft skill, and tailwind-best-practices skill.
+- Keep the implementation practical and assignment-focused. Do not overengineer.
+- Use JavaScript, not TypeScript.
+- Do not add unnecessary libraries.
+- Do not add animations unless they provide a clear UX benefit.
+- Do not create a large custom design system.
+- Keep components reusable but avoid premature abstraction.
+
+TECH STACK:
+- React
+- Vite
+- React Router
+- Tailwind CSS
+- TanStack Query
+- Zustand
+- Axios
+- Socket.IO client later
+
+BACKEND CONTRACT:
+The backend already exists and must be treated as the source of truth.
+
+Roles:
+- platformAdmin
+- brokerageAdmin
+- advisor
+- client
+
+Authentication:
+- JWT is stored in an HTTP-only cookie.
+- Frontend must never read/store the JWT itself.
+- Authentication is checked through:
+  GET {{base_url}}/api/auth/me
+- Login:
+  POST {{base_url}}/api/auth/login
+- Logout:
+  POST {{base_url}}/api/auth/logout
+
+Existing important backend routes include:
+
+Auth:
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/auth/me
+
+Leads:
+GET    /api/leads
+GET    /api/leads/:id
+POST   /api/leads
+PATCH  /api/leads/:id
+DELETE /api/leads/:id
+PATCH  /api/leads/:id/status
+POST   /api/leads/:id/convert-to-client
+
+Dashboard:
+GET /api/dashboard/pipeline
+
+Tasks:
+GET   /api/tasks
+GET   /api/tasks/:id
+PATCH /api/tasks/:id
+PATCH /api/tasks/:id/complete
+
+Client:
+GET /api/client/case
+GET /api/client/documents
+POST /api/client/documents
+GET /api/client/documents/:id
+
+Advisor management:
+GET /api/brokerages/:id/advisors
+GET /api/brokerages/:id/advisors/available
+POST /api/brokerages/:id/advisors
+PATCH /api/brokerages/:id/advisors/:advisorId
+
+Email templates:
+GET /api/brokerages/:id/email-templates
+POST /api/brokerages/:id/email-templates
+PATCH /api/brokerages/:id/email-templates/:templateId
+DELETE /api/brokerages/:id/email-templates/:templateId
+
+Task triggers:
+GET /api/brokerages/:id/task-triggers
+POST /api/brokerages/:id/task-triggers
+PATCH /api/brokerages/:id/task-triggers/:triggerId
+DELETE /api/brokerages/:id/task-triggers/:triggerId
+
+FIRST OBJECTIVE:
+
+Build the frontend foundation required for all later screens.
+
+1. Inspect the current client/package.json and existing source files.
+
+2. Configure/install only the dependencies actually required for:
+- React Router
+- TanStack Query
+- Axios
+- Zustand
+- Tailwind CSS if not already configured
+
+3. Create a clean frontend structure similar to:
+
+client/src/
+├── assets/
+├── components/
+├── hooks/
+├── layouts/
+├── pages/
+├── routes/
+├── services/
+├── store/
+├── utils/
+├── main.jsx
+├── App.jsx
+└── index.css
+
+Adjust the structure if the existing project already has equivalent files.
+
+4. Create a centralized Axios API client.
+
+Requirements:
+- baseURL must come from an environment variable.
+- Use credentials so HTTP-only cookies are sent.
+- Do not store JWT tokens in localStorage/sessionStorage.
+- Provide a clean place for common API error handling.
+- Do not hardcode localhost URLs throughout components.
+
+Use a frontend env variable such as:
+VITE_API_BASE_URL
+
+5. Create an auth service for:
+- login
+- logout
+- getCurrentUser
+
+6. Create an authentication store using Zustand.
+
+The store should represent:
+- current user
+- authentication loading state
+- authenticated/unauthenticated state
+- initialization/checking state
+
+Do not persist the JWT because the JWT is HTTP-only.
+
+7. Create a bootstrap/auth initialization flow.
+
+When the application starts:
+- call GET /api/auth/me
+- if authenticated, store the returned user
+- if unauthenticated, mark the user as logged out
+- avoid flashing protected pages while authentication is still being determined
+
+8. Create route protection.
+
+Implement:
+- public route for /login
+- protected application routes
+- role-aware protection where useful
+
+At minimum:
+- unauthenticated users should be redirected to /login
+- authenticated users should not remain on /login unnecessarily
+- client users should not access brokerage/admin/advisor screens
+- non-client users should not access the client portal
+
+Do not build every page yet. Placeholder pages are acceptable.
+
+9. Create the main application layout.
+
+Build a professional but simple CRM-style layout:
+- sidebar/navigation
+- top header
+- main content area
+- user name/role display
+- logout action
+
+Navigation should be role-aware.
+
+Do not create fake navigation destinations that do not exist yet unless they are clearly placeholder routes.
+
+10. Create placeholder routes/pages for the upcoming major screens:
+
+For brokerage/admin/advisor:
+- /dashboard
+- /leads
+- /tasks
+
+For brokerage admin:
+- /advisors
+- /email-templates
+- /task-triggers
+
+For client:
+- /client/case
+- /client/documents
+
+For platform admin:
+- create a minimal placeholder dashboard route for now.
+
+11. Build the Login page.
+
+Requirements:
+- email
+- password
+- submit button
+- loading state
+- server error display
+- accessible labels
+- sensible validation
+- responsive layout
+- clean SaaS/CRM visual hierarchy
+- do not over-design it
+
+On successful login:
+- update auth state
+- redirect the user based on role
+- brokerage users should go to /dashboard
+- client users should go to /client/case
+
+12. Handle API errors consistently.
+
+At minimum support:
+- 401 unauthenticated
+- 403 forbidden
+- 404 not found
+- 409 conflict
+- 422 validation error
+- 500/server error
+
+Do not expose raw Axios error objects to users.
+
+13. Add useful loading and empty states where applicable.
+
+14. Keep accessibility in mind:
+- semantic HTML
+- labels
+- keyboard navigation
+- visible focus states
+- buttons should have clear labels
+- do not rely on color alone for important state
+
+15. Tailwind:
+- use the existing Tailwind configuration if present
+- use consistent spacing and typography
+- avoid arbitrary values unless genuinely necessary
+- avoid giant one-off class strings when a small reusable component makes sense
+- do not build a full design system yet
+
+16. Verify:
+- npm install succeeds
+- npm run build succeeds
+- no ESLint/syntax errors if linting exists
+- application starts correctly
+- login page renders
+- unauthenticated access redirects to /login
+- auth initialization works
+- logout works
+- no JWT is stored in browser storage
+- no backend files were modified
+
+IMPORTANT:
+Do not implement Dashboard, Leads Kanban, Lead Detail, Tasks, Documents, or advanced realtime behavior in this prompt. Only create the foundation and placeholder routes required for them.
+
+At the end, report:
+- files created/changed
+- dependencies added
+- routes created
+- auth flow implemented
+- verification results
+- any manual test I should perform
+
+## Prompt 26
+
+Now implement the first real LeadFlow product screens:
+
+1. Dashboard
+2. Leads Kanban board
+3. Lead creation
+4. Lead detail view
+5. Pipeline status movement
+6. Basic advisor assignment
+
+IMPORTANT:
+- Work ONLY inside client/.
+- Do NOT modify server/.
+- Do NOT invent or change backend APIs.
+- Use the existing backend contract.
+- Use the available LeadFlow React, design-craft, and tailwind-best-practices skills.
+- Keep the implementation focused on the assignment MVP.
+- Do not add unnecessary libraries.
+- Do not implement advanced analytics.
+- Do not implement drag-and-drop unless it can be done cleanly without adding unnecessary complexity. Buttons/dropdowns for status movement are acceptable for this iteration.
+- Do not build realtime Socket.IO yet. We will add it separately after the core UI works.
+- Do not implement tasks/email templates/client portal/documents in this prompt.
+- Do not commit.
+
+EXISTING BACKEND CONTRACT
+
+Dashboard:
+GET {{base_url}}/api/dashboard/pipeline
+
+Response:
+{
+  "NEW": number,
+  "CONTACTED": number,
+  "QUALIFIED": number,
+  "APPLICATION": number,
+  "WON": number,
+  "LOST": number
+}
+
+Leads:
+GET    {{base_url}}/api/leads
+GET    {{base_url}}/api/leads/:id
+POST   {{base_url}}/api/leads
+PATCH  {{base_url}}/api/leads/:id
+DELETE {{base_url}}/api/leads/:id
+PATCH  {{base_url}}/api/leads/:id/status
+
+Lead statuses:
+NEW
+CONTACTED
+QUALIFIED
+APPLICATION
+WON
+LOST
+
+Lead creation requires at least one:
+- email
+- phone
+
+Duplicate detection is backend-controlled.
+
+Duplicate response:
+HTTP 409
+{
+  "message": "Duplicate lead detected.",
+  "duplicateLeadId": "<existing lead id>"
+}
+
+Status updates use optimistic concurrency.
+
+Status request requires:
+{
+  "status": "CONTACTED",
+  "version": 0
+}
+
+A stale version returns HTTP 409.
+
+Advisor APIs:
+GET {{base_url}}/api/brokerages/:id/advisors
+GET {{base_url}}/api/brokerages/:id/advisors/available
+
+The authenticated user's brokerageId should be taken from the auth user returned by /api/auth/me.
+
+Do NOT trust or manually invent brokerage IDs in the UI.
+
+LEAD LIST / KANBAN
+
+Create a proper `/leads` page.
+
+Display six columns:
+
+NEW
+CONTACTED
+QUALIFIED
+APPLICATION
+WON
+LOST
+
+Each lead card should show useful information such as:
+- full name
+- email if available
+- phone if available
+- source
+- assigned advisor if available
+- current status
+
+Cards should be visually compact enough that multiple leads can be viewed comfortably.
+
+Provide:
+- loading state
+- error state
+- empty state per column
+- refresh/retry capability where appropriate
+
+Use TanStack Query for server state.
+
+Do NOT manually duplicate server state in Zustand.
+
+LEAD FILTERING
+
+At minimum provide:
+- search by name/email/phone
+- status is represented by the Kanban columns
+
+Search can initially be client-side against the currently loaded lead list if the backend does not provide search parameters.
+
+Do not invent query parameters that the backend does not support.
+
+CREATE LEAD
+
+Add a clear "New Lead" action.
+
+Create a modal or dedicated form.
+
+Fields:
+- first name
+- last name
+- email
+- phone
+- source
+- assigned advisor
+
+Validation:
+- first name required
+- last name required
+- at least email OR phone required
+- show useful validation messages
+
+Do not perform duplicate detection in the frontend as a replacement for the backend.
+
+Submit:
+POST {{base_url}}/api/leads
+
+On success:
+- close/reset the form
+- invalidate/refetch the leads query
+- invalidate/refetch dashboard pipeline counts
+
+On 409:
+show a clear message such as:
+"This lead already exists in this brokerage."
+If duplicateLeadId is available, provide a useful action to open the existing lead if practical.
+
+On 400/422:
+display the backend validation message.
+
+LEAD DETAIL
+
+Create:
+`/leads/:id`
+
+Fetch:
+GET {{base_url}}/api/leads/:id
+
+Display:
+- full name
+- email
+- phone
+- source
+- current status
+- assigned advisor
+- notes if available
+- created date
+- updated date
+- version
+
+Provide actions:
+- change pipeline status
+- assign advisor where the authenticated role is allowed
+- convert to client can be shown as a placeholder/action only if the existing backend endpoint can be used safely later; do NOT implement client conversion in this prompt.
+
+STATUS MOVEMENT
+
+Use:
+PATCH {{base_url}}/api/leads/:id/status
+
+Request:
+{
+  "status": "<new status>",
+  "version": <current version>
+}
+
+Do NOT send status changes through the generic PATCH lead endpoint.
+
+After success:
+- update/invalidate the lead query
+- invalidate the leads list
+- invalidate dashboard pipeline query
+
+Handle HTTP 409 specially.
+
+If a stale version conflict occurs:
+show:
+"This lead was updated elsewhere. Refreshing the latest version."
+Then refetch the lead/list rather than silently overwriting the other update.
+
+Do not implement automatic retry of a conflicting status change.
+
+ADVISOR ASSIGNMENT
+
+For brokerage users where the backend permits assignment:
+- load available advisors
+- show advisor name/email
+- allow selecting an advisor
+
+Use the existing lead update API only if the backend supports assignedAdvisorId through PATCH /api/leads/:id.
+
+Before implementing, inspect the existing backend contract implied by the API behavior already available to the frontend. Do not invent a separate assignment endpoint.
+
+If assignment is not appropriate for a role, hide/disable the control.
+
+ROLE BEHAVIOR
+
+brokerageAdmin:
+- dashboard
+- leads
+- tasks navigation
+- advisor management navigation
+- email templates navigation
+- task triggers navigation
+
+advisor:
+- dashboard
+- leads
+- tasks
+
+platformAdmin:
+- dashboard
+- leads
+- appropriate platform access based on existing backend behavior
+- do not expose brokerage-specific controls unless supported by the current backend contract
+
+client:
+- must not see brokerage CRM navigation
+- client routes remain separate
+
+DASHBOARD
+
+Implement `/dashboard`.
+
+Use:
+GET {{base_url}}/api/dashboard/pipeline
+
+Create a clean CRM dashboard with:
+- total active pipeline count
+- six pipeline status cards/counts
+- simple visual representation of pipeline distribution
+
+Do not build charts requiring another library.
+
+Dashboard should communicate:
+- NEW
+- CONTACTED
+- QUALIFIED
+- APPLICATION
+- WON
+- LOST
+
+Clearly distinguish active pipeline stages from terminal WON/LOST stages without inventing business rules not present in the backend.
+
+Use TanStack Query.
+
+When a lead is created or its status changes, invalidate the dashboard query so counts do not remain stale.
+
+DESIGN
+
+Use the design-craft skill for visual hierarchy.
+
+Use tailwind-best-practices for implementation.
+
+Use the existing LeadFlow design tokens from the foundation.
+
+Visual direction:
+- professional SaaS CRM
+- clean
+- compact
+- readable
+- strong hierarchy
+- good spacing
+- responsive
+- accessible
+- desktop-first but usable on smaller screens
+
+Avoid:
+- excessive gradients
+- unnecessary glassmorphism
+- excessive animations
+- giant cards
+- fake metrics
+- decorative elements that do not help the workflow
+
+RESPONSIVE BEHAVIOR
+
+Dashboard:
+- cards should wrap cleanly.
+
+Kanban:
+- on desktop, six columns can horizontally scroll if necessary.
+- do NOT squeeze six columns into unreadable widths.
+- on smaller screens, allow horizontal scrolling.
+
+ERROR HANDLING
+
+Handle:
+401
+403
+404
+409
+422
+500
+
+Use the existing shared error handling conventions from the foundation.
+
+Do not show raw Axios errors.
+
+TANSTACK QUERY
+
+Use stable query keys, for example:
+- ['dashboard', 'pipeline']
+- ['leads']
+- ['lead', leadId]
+- ['advisors', brokerageId]
+
+Use query invalidation after mutations.
+
+Avoid unnecessary useEffect.
+
+Do not duplicate fetched leads into Zustand.
+
+VERIFICATION
+
+Run:
+npm run build
+
+Also verify:
+- /login still works
+- authenticated users reach /dashboard
+- dashboard loads actual backend counts
+- /leads loads actual leads
+- creating a lead works
+- duplicate lead returns a useful UI error
+- lead detail opens
+- status movement works with version
+- stale version 409 is handled
+- dashboard count refreshes after status change
+- advisor list loads where permitted
+- no server files changed
+
+At the end report:
+- files changed
+- routes/pages added
+- API endpoints actually used
+- dependencies added, if any
+- build result
+- manual tests still needed
+
+
+## Prompt 27
