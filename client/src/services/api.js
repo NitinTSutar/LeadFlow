@@ -1,9 +1,15 @@
 import axios from "axios";
 
+const configuredBackendUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+if (!configuredBackendUrl) {
+  throw new Error("VITE_API_BASE_URL is required. Set it to the backend origin.");
+}
+
+export const backendOrigin = configuredBackendUrl.replace(/\/+$/, "");
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
+  baseURL: `${backendOrigin}/api`,
   withCredentials: true,
-  headers: { "Content-Type": "application/json" },
 });
 
 export function getApiError(error) {

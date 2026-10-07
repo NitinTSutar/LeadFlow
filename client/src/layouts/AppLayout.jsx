@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/auth.store.js";
 
 const links = {
-  platformAdmin: [{ to: "/dashboard", label: "Dashboard" }],
+  platformAdmin: [{ to: "/platform/dashboard", label: "Dashboard" }, { to: "/platform/brokerages", label: "Brokerages" }],
   brokerageAdmin: [{ to: "/dashboard", label: "Dashboard" }, { to: "/leads", label: "Leads" }, { to: "/tasks", label: "Tasks" }, { to: "/advisors", label: "Advisors" }, { to: "/email-templates", label: "Email templates" }, { to: "/task-triggers", label: "Task triggers" }],
   advisor: [{ to: "/dashboard", label: "Dashboard" }, { to: "/leads", label: "Leads" }, { to: "/tasks", label: "Tasks" }],
   client: [{ to: "/client/case", label: "My case" }, { to: "/client/documents", label: "Documents" }],

@@ -10,6 +10,7 @@ import tallyRoutes from "./routes/tally.routes.js";
 import clientRoutes from "./routes/client.routes.js";
 import taskRoutes from "./routes/task.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
+import platformDashboardRoutes from "./routes/platform-dashboard.routes.js";
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use("/api/webhooks", tallyRoutes);
 app.use("/api/client", clientRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/platform", platformDashboardRoutes);
 
 app.use((error, req, res, next) => {
   console.error(error);

@@ -4155,3 +4155,1047 @@ At the end report:
 - any manual realtime test remaining
 
 ## Prompt 30
+
+
+Update the LeadFlow frontend to use the existing VITE_API_BASE_URL environment variable for all backend API and Socket.IO connections.
+
+Context:
+- Frontend: React + Vite + JavaScript.
+- Backend runs separately from the frontend.
+- I have already created client/.env with:
+  VITE_API_BASE_URL=http://localhost:5000
+- Do not create another env file.
+- Do not change the backend.
+- Do not add a Vite development proxy.
+- Do not introduce any unnecessary refactoring.
+
+Requirements:
+
+1. Inspect the existing frontend API/service architecture first.
+2. Update the centralized HTTP client/API configuration so that the backend base URL comes from:
+   import.meta.env.VITE_API_BASE_URL
+3. Preserve the existing `/api` route structure.
+   The final API base should effectively become:
+   ${import.meta.env.VITE_API_BASE_URL}/api
+4. Do not hardcode `http://localhost:5000` anywhere in frontend source code.
+5. Keep `withCredentials: true` because authentication uses HTTP-only cookies.
+6. Inspect every existing service that makes backend requests and make sure none of them bypasses the centralized API client with a hardcoded backend URL.
+7. Update the existing Socket.IO realtime service to connect using:
+   import.meta.env.VITE_API_BASE_URL
+   and preserve `withCredentials: true`.
+8. Do not put `/api` into the Socket.IO URL. Socket.IO should connect to the backend origin itself.
+9. Preserve all existing Socket.IO event handling, reconnect behavior, query invalidation, and logout/disconnect behavior.
+10. Do not change authentication logic, routing, Zustand state, TanStack Query configuration, or backend API contracts.
+11. Add a safe development fallback only if the existing architecture requires one; otherwise rely on VITE_API_BASE_URL and fail clearly if it is missing.
+12. Verify that the frontend still builds successfully with:
+    npm run build
+
+Also inspect `.gitignore` and ensure `client/.env` is ignored, while `client/.env.example` can be tracked if appropriate. Do not expose or print any secret values.
+
+Important:
+- Keep the change minimal and focused.
+- Do not add Vite proxy configuration.
+- Do not change API endpoint paths.
+- Do not modify unrelated files.
+- After implementation, summarize exactly which files were changed and why.
+
+## PRompt 31
+
+Implement a proper Platform Admin management area for LeadFlow.
+
+Context:
+- LeadFlow is a multi-tenant MERN application.
+- There are four roles: platformAdmin, brokerageAdmin, advisor, client.
+- The existing frontend currently only has the brokerage workspace UI.
+- Platform Admin currently gets sent to the normal dashboard, which fails because the dashboard requires a brokerageId.
+- Do NOT modify the normal brokerage dashboard behavior.
+- Do NOT change existing backend contracts unless an actually required backend endpoint is missing.
+- First inspect the existing backend brokerage routes/controllers/services/models and dashboard API before implementing anything. Reuse existing APIs wherever possible.
+
+GOAL:
+
+Create a dedicated Platform Admin area for managing brokerages and their brokerage admins.
+
+1. PLATFORM ADMIN ROUTING
+
+Create a protected platform-admin-only route:
+
+/platform/brokerages
+
+Only platformAdmin should be able to access it.
+
+Do not show the normal brokerage dashboard as the default landing page for platformAdmin.
+
+After platformAdmin login/session restoration, route them to:
+
+/platform/brokerages
+
+Brokerage admins/advisors/clients must not be able to access this route.
+
+The backend remains the real authorization boundary.
+
+2. PLATFORM ADMIN SIDEBAR
+
+For platformAdmin, show navigation appropriate to the platform-management area, for example:
+
+- Brokerages
+
+Do not show brokerage-workspace navigation such as Leads, Tasks, Email Templates, etc. unless the existing architecture explicitly requires it.
+
+Keep the existing sidebar/navigation behavior unchanged for non-platform users.
+
+3. BROKERAGE LIST
+
+Create a polished Brokerages page.
+
+Display all brokerages in a table/list.
+
+Each brokerage row should show:
+
+- Brokerage name
+- Basic brokerage identifier/details only if already available from the API
+- Number of brokerage admins
+- Pipeline counts:
+  - NEW
+  - CONTACTED
+  - QUALIFIED
+  - APPLICATION
+  - WON
+  - LOST
+- Actions:
+  - Edit
+  - Delete
+
+Do NOT show lead/client names, emails, phone numbers, documents, or other personal data in the platform-level pipeline summary.
+
+Pipeline counts are aggregate numbers only.
+
+4. BROKERAGE CRUD
+
+Implement:
+
+- Create brokerage
+- Edit brokerage
+- Delete brokerage
+
+Use the existing backend APIs if available.
+
+Create/edit form should only contain fields supported by the existing brokerage model/API.
+
+Add:
+- client-side validation
+- loading state
+- disabled submit while pending
+- success/error feedback
+- confirmation before destructive deletion
+
+After create/edit/delete, invalidate/refetch the relevant TanStack Query data.
+
+5. BROKERAGE ADMINS
+
+For each brokerage, provide a way to manage its brokerage admins.
+
+The platform admin should be able to:
+
+- List brokerage admins
+- Create brokerage admin
+- Edit brokerage admin
+- Delete/deactivate brokerage admin
+
+Admin fields should match the existing backend user/admin API contract.
+
+Do NOT allow changing the user's role to arbitrary roles from this UI.
+
+Brokerage admin accounts must remain:
+role = brokerageAdmin
+brokerageId = the selected brokerage
+
+When creating an admin, associate it with the selected brokerage on the backend.
+
+Do not trust a brokerageId supplied by arbitrary non-platform users. Platform Admin is explicitly authorized to operate across brokerages.
+
+6. BROKERAGE PIPELINE SUMMARY
+
+The platform-level brokerage list must show only aggregate pipeline numbers.
+
+Use the existing dashboard pipeline endpoint if it supports platformAdmin with:
+
+GET /api/dashboard/pipeline?brokerageId=<brokerageId>
+
+If the frontend needs to request counts for multiple brokerages, fetch only the aggregate counts needed for the table.
+
+Do not fetch the brokerage's leads or clients just to calculate these counts on the frontend.
+
+Prefer backend aggregation.
+
+If the existing API already supports this correctly, reuse it without changing the backend.
+
+7. DATA FETCHING
+
+Use TanStack Query.
+
+Suggested query structure:
+
+['platform', 'brokerages']
+
+and per brokerage pipeline:
+
+['platform', 'brokerage-pipeline', brokerageId]
+
+Use targeted invalidation after mutations.
+
+Avoid putting server data into Zustand.
+
+8. PLATFORM ADMIN AUTH
+
+Use the existing auth/me session.
+
+Do not store JWT tokens in localStorage/sessionStorage.
+
+Do not add a second authentication mechanism.
+
+9. UI/UX
+
+Match the existing LeadFlow visual style.
+
+Keep it clean and professional.
+
+The page should clearly communicate:
+
+Platform Administration
+Manage brokerages, brokerage admins, and high-level pipeline metrics.
+
+Use reusable existing components where appropriate.
+
+Include:
+- loading state
+- empty state
+- error state
+- confirmation dialog for delete
+- clear success/error feedback
+
+The brokerage list should remain usable at normal desktop widths and avoid unnecessary complexity.
+
+10. DELETE SAFETY
+
+Before deleting a brokerage, show a confirmation explaining that the brokerage and its associated platform data may be affected.
+
+Inspect the backend behavior before deciding whether deletion is hard delete, soft delete, or restricted.
+
+Do not invent destructive cascading behavior.
+
+If the existing backend does not safely support brokerage deletion, implement the safest supported behavior rather than bypassing backend rules.
+
+11. IMPORTANT BACKEND RULE
+
+Before writing code, inspect:
+
+- brokerage model
+- brokerage routes
+- brokerage controller
+- brokerage service
+- user/admin management APIs
+- dashboard pipeline API
+- auth/role middleware
+- existing frontend API/service patterns
+
+Do not invent endpoints.
+
+If a required CRUD operation genuinely does not exist in the backend, implement the smallest backend endpoint necessary following the existing architecture:
+
+Route → Controller → Service → Model
+
+Keep controllers thin and preserve platform-admin authorization.
+
+12. API SERVICE LAYER
+
+Create/use a dedicated service module such as:
+
+platform.service.js
+
+Keep Axios calls out of page components.
+
+13. ROUTING
+
+Update the existing route configuration so:
+
+platformAdmin → /platform/brokerages
+brokerageAdmin/advisor → existing brokerage dashboard
+client → existing client portal
+
+Do not break existing routes.
+
+14. BUILD
+
+After implementation run:
+
+npm run build
+
+Fix any build errors.
+
+Do not modify unrelated features.
+
+Do not redesign the existing brokerage workspace.
+
+Keep this implementation focused and deadline-friendly.
+
+At the end, report:
+- files changed
+- APIs reused
+- APIs added, if any
+- build result
+- any backend limitation that remains
+
+## Prompt 32
+
+Fix the Platform Admin landing/dashboard experience by replacing the current brokerage dashboard with a proper Platform Overview Dashboard.
+
+Context:
+- LeadFlow is a multi-tenant MERN application.
+- Roles: platformAdmin, brokerageAdmin, advisor, client.
+- Platform Admin manages multiple brokerages.
+- Platform Admin currently lands on `/dashboard`, which is incorrect because the normal dashboard requires a brokerageId.
+- We already have `/platform/brokerages` for brokerage management.
+- Do not remove the concept of a dashboard. Create a dedicated platform-level dashboard.
+- Do not change the existing brokerage dashboard behavior for brokerageAdmin/advisor.
+- Do not display individual lead/client personal information to Platform Admin.
+
+GOAL:
+
+Platform Admin should land on:
+
+/platform/dashboard
+
+after login/session restoration.
+
+The existing `/platform/brokerages` page should remain available from the platform navigation.
+
+1. PLATFORM ADMIN ROUTING
+
+Update platform-admin routing so:
+
+platformAdmin → /platform/dashboard
+
+brokerageAdmin/advisor → existing /dashboard
+
+client → existing client portal
+
+If a platformAdmin manually visits `/dashboard`, redirect them to `/platform/dashboard`.
+
+If a non-platform user tries to access `/platform/dashboard`, deny access using the existing role-aware route protection.
+
+2. PLATFORM ADMIN NAVIGATION
+
+For platformAdmin show:
+
+- Dashboard
+- Brokerages
+
+Do not show brokerage workspace navigation such as Leads, Tasks, Email Templates, Task Triggers, etc.
+
+Preserve the existing navigation for brokerageAdmin/advisor/client.
+
+3. PLATFORM OVERVIEW DASHBOARD
+
+Create a dedicated PlatformDashboardPage.
+
+Use a clean professional layout matching the existing LeadFlow design.
+
+Header:
+
+Platform Overview
+High-level view of all brokerages and platform activity.
+
+Show aggregate summary cards:
+
+- Total Brokerages
+- Total Brokerage Admins
+- Total Advisors
+- Total Clients
+- Total Leads
+
+Then show an overall pipeline summary:
+
+- NEW
+- CONTACTED
+- QUALIFIED
+- APPLICATION
+- WON
+- LOST
+
+Only show aggregate counts.
+
+Do NOT expose:
+- lead names
+- client names
+- emails
+- phone numbers
+- document information
+- individual lead/client records
+
+4. BROKERAGE PIPELINE SUMMARY
+
+Below the overall summary, show a brokerage-level aggregate table:
+
+Columns:
+
+Brokerage
+NEW
+CONTACTED
+QUALIFIED
+APPLICATION
+WON
+LOST
+
+Each row represents one brokerage.
+
+Only counts should be displayed.
+
+This lets the Platform Admin understand platform activity without accessing individual client information.
+
+5. BACKEND API
+
+Before coding, inspect the existing backend models, services, routes, controllers, and dashboard/brokerage APIs.
+
+Do not fetch every lead/client/user into the frontend just to calculate counts.
+
+Prefer a single platform summary endpoint, for example:
+
+GET /api/platform/dashboard
+
+The exact endpoint name is your choice if it fits the existing architecture.
+
+The endpoint should be accessible only to platformAdmin.
+
+Return aggregate data similar to:
+
+{
+  "summary": {
+    "brokerages": 3,
+    "brokerageAdmins": 7,
+    "advisors": 18,
+    "clients": 42,
+    "leads": 156
+  },
+  "pipeline": {
+    "NEW": 32,
+    "CONTACTED": 41,
+    "QUALIFIED": 28,
+    "APPLICATION": 24,
+    "WON": 21,
+    "LOST": 10
+  },
+  "brokerages": [
+    {
+      "brokerageId": "...",
+      "name": "ABC Mortgage",
+      "pipeline": {
+        "NEW": 5,
+        "CONTACTED": 8,
+        "QUALIFIED": 3,
+        "APPLICATION": 4,
+        "WON": 2,
+        "LOST": 1
+      }
+    }
+  ]
+}
+
+Use MongoDB aggregation/count queries efficiently.
+
+Do not return individual users, leads, clients, documents, emails, phone numbers, or other personal information.
+
+6. TENANT/SECURITY
+
+The platform dashboard endpoint must require:
+
+platformAdmin
+
+Brokerage admins, advisors, and clients must receive the appropriate authorization error.
+
+Do not accept a brokerageId from the frontend for the platform-wide summary.
+
+The backend determines that the authenticated user is a platformAdmin.
+
+7. FRONTEND SERVICE
+
+Create/use a dedicated service such as:
+
+platform.service.js
+
+Add a function for fetching the platform dashboard summary.
+
+Do not put Axios calls directly inside PlatformDashboardPage.
+
+Use the existing centralized API client.
+
+8. TANSTACK QUERY
+
+Use TanStack Query for the platform dashboard.
+
+Suggested key:
+
+['platform', 'dashboard']
+
+Handle:
+
+- loading state
+- error state
+- empty state
+- successful data state
+
+Do not duplicate the API response into Zustand.
+
+9. REALTIME / FRESHNESS
+
+The platform dashboard should not require complicated caching.
+
+Prefer fresh aggregate data when the page loads.
+
+If existing Socket.IO events make targeted invalidation straightforward, invalidate the platform dashboard when relevant lead changes occur.
+
+Do not introduce Redis, a new cache layer, or unnecessary infrastructure for this feature.
+
+10. BROKERAGE MANAGEMENT INTEGRATION
+
+The existing `/platform/brokerages` page should remain unchanged in its core functionality:
+
+- Create brokerage
+- Edit brokerage
+- Delete brokerage
+- Manage brokerage admins
+- Show brokerage pipeline aggregate counts
+
+If useful, make the brokerage name in the platform dashboard clickable and navigate to `/platform/brokerages`.
+
+Do not add individual lead/client detail access to the platform dashboard.
+
+11. LOGIN REDIRECT
+
+Update the existing LoginPage/session restoration logic so platformAdmin lands at:
+
+/platform/dashboard
+
+Do not redirect platformAdmin to `/dashboard`.
+
+Preserve existing landing behavior for all other roles.
+
+12. UI
+
+Make the platform dashboard visually consistent with the existing application.
+
+Use:
+- summary cards
+- pipeline count cards/table
+- brokerage pipeline table
+- responsive layout
+- loading skeleton/spinner
+- useful error message with retry
+
+Do not over-design it.
+
+13. BUILD AND VERIFICATION
+
+Run:
+
+npm run build
+
+Fix all build errors.
+
+Also verify that:
+
+- platformAdmin → /platform/dashboard
+- brokerageAdmin → /dashboard
+- platformAdmin cannot accidentally hit the brokerage dashboard
+- non-platform users cannot access /platform/dashboard
+- platform dashboard shows aggregate numbers
+- no personal lead/client data is displayed
+- brokerage management page still works
+- existing brokerage dashboard remains unchanged
+
+Keep the implementation focused. Do not modify unrelated LeadFlow features.
+
+## Prompt 33
+
+Fix the existing LeadFlow Advisors page so Brokerage Admins can actually manage advisors through the existing backend APIs.
+
+Context:
+- Backend advisor management APIs already exist and are implemented.
+- The current frontend `/advisors` page is only a placeholder saying:
+  "This workspace is ready for the next LeadFlow feature."
+- There is no Add Advisor button or advisor list.
+- Do not redesign the entire application.
+- Do not modify unrelated features.
+- Do not create new backend APIs unless inspection proves an existing required API is missing.
+
+First inspect:
+- existing AdvisorPage/AdvisorsPage
+- advisor.service.js
+- existing brokerage routes and advisor backend routes/controllers/services
+- AppRoutes.jsx
+- AppLayout.jsx
+- existing Modal/Form components
+- existing LeadFlow UI patterns
+
+GOAL:
+
+Turn `/advisors` into a functional advisor management page.
+
+1. ADVISOR LIST
+
+Fetch advisors using the existing advisor API.
+
+Display a useful table/list containing:
+
+- Name
+- Email
+- Status (Active/Inactive)
+- Active case count / workload
+- Actions
+
+Do not display passwords or sensitive authentication data.
+
+Handle:
+- loading
+- empty state
+- API error
+- successful state
+
+2. ADD ADVISOR
+
+Add a clearly visible:
+
+"+ Add Advisor"
+
+button.
+
+Clicking it opens a modal/form.
+
+Fields:
+
+- Name
+- Email
+- Password
+
+Use the existing backend API contract exactly.
+
+On submit:
+- validate required fields
+- disable submit while pending
+- show useful backend errors
+- close/reset the form after success
+- invalidate/refetch the advisor list
+
+3. EDIT ADVISOR
+
+Provide an Edit action.
+
+Use the existing PATCH advisor endpoint.
+
+Allow only fields supported by the existing backend contract, such as:
+- name
+- email
+- active/inactive status
+
+Do NOT allow changing:
+- role
+- brokerageId
+
+The advisor must remain role=advisor and belong to the current brokerage.
+
+4. ACTIVATE / DEACTIVATE
+
+Use the existing advisor update API to toggle active status.
+
+Clearly show active/inactive state.
+
+Do not delete advisors if the existing backend model/API is designed around activation/deactivation.
+
+5. AVAILABLE ADVISORS / WORKLOAD
+
+Preserve/use the existing available-advisor endpoint if the current frontend or future lead assignment requires it.
+
+Display active case count/workload where already supported by the API.
+
+Do not calculate workload from leads on the frontend.
+
+6. TENANT SAFETY
+
+Do not send an arbitrary brokerageId from the frontend when the authenticated Brokerage Admin context is already derived by the backend.
+
+Follow the existing backend API contract.
+
+The Brokerage Admin should only see advisors belonging to their own brokerage.
+
+7. TANSTACK QUERY
+
+Use TanStack Query for:
+- advisor list
+- advisor mutations
+
+Invalidate the advisor list after:
+- create
+- edit
+- activate/deactivate
+
+Do not put advisor API data into Zustand.
+
+8. UI
+
+Match the existing LeadFlow visual style.
+
+Use existing reusable components where appropriate.
+
+The page should have:
+
+Advisors
+Manage brokerage advisors from this workspace.
+
+[ + Add Advisor ]
+
+Then a clean list/table.
+
+Make it functional first. Do not spend time on advanced visual design.
+
+9. BUILD
+
+Run:
+
+npm run build
+
+Fix any build errors.
+
+Do not change unrelated pages.
+
+At the end, report:
+- files changed
+- APIs used
+- build result
+
+## Prompt 34
+
+Fix the Email Templates UI so brokerage admins can explicitly configure which pipeline stage triggers each email template.
+
+First inspect the existing email template model, service, controller, routes, email-trigger service, and EmailTemplatesPage.jsx. The backend already uses pipeline stages for email triggering; preserve the existing backend contract and do not invent a different trigger mechanism.
+
+Current problem:
+The Create/Edit Email Template modal only contains:
+- Template name
+- Subject
+- Body
+- Active
+
+There is no stage/trigger-stage field, so the admin cannot choose when the template should fire.
+
+Implement:
+
+1. Add a required "Trigger stage" field to the create/edit email template form.
+
+Options:
+- NEW
+- CONTACTED
+- QUALIFIED
+- APPLICATION
+- WON
+- LOST
+
+Use the exact stage values already defined by the backend.
+
+Add helper text:
+"When a lead enters this stage, this email will be triggered."
+
+2. When creating a template, send the selected stage using the existing backend API contract.
+
+Do not rename or replace the backend field if it already exists.
+
+3. When editing a template, load and display its existing stage.
+
+Allow the brokerage admin to change the trigger stage if the backend supports updating it.
+
+4. Display the trigger stage in the email template list/table.
+
+Example:
+
+Template | Trigger stage | Status | Actions
+
+5. Preserve:
+- placeholders {{clientName}} and {{advisorName}}
+- active/inactive state
+- create
+- edit
+- delete/deactivate
+- TanStack Query invalidation
+- existing error/loading/success handling
+
+6. Important:
+Inspect the existing email-trigger service before changing anything.
+
+Verify the actual behavior is:
+
+lead enters stage
+→ find active template for brokerage + stage
+→ render placeholders
+→ send email
+
+Do not add a second trigger system.
+
+7. Do not change unrelated lead/task functionality.
+
+8. Run npm run build and fix any errors.
+
+At the end, report:
+- files changed
+- whether backend changes were required
+- exact trigger field used
+- build result
+
+## Prompt 35
+
+Add the existing LeadFlow "Convert Lead to Client" functionality to the Lead Detail page.
+
+First inspect the existing lead detail page and the existing backend endpoint:
+POST /api/leads/:leadId/convert-to-client
+
+Do not create a new backend conversion mechanism.
+
+Requirements:
+
+1. On LeadDetailPage.jsx, add a "Convert to Client" section/action when:
+- lead is not already converted
+- lead is eligible for conversion
+- current user has permission to convert leads
+
+2. Show the action clearly near the lead/pipeline information.
+
+Example:
+"Convert to Client"
+"Create a client account from this lead."
+
+3. Clicking it should open a modal asking for the client's temporary password.
+
+Use the existing backend request contract. The request body field is:
+{
+  "password": "..."
+}
+
+Do NOT use "temporaryPassword".
+
+4. On submit:
+POST /api/leads/:leadId/convert-to-client
+
+Use the existing centralized Axios/API service.
+
+5. Handle:
+- loading state
+- success state
+- backend errors
+- 409/conflict
+- validation for password
+
+6. After successful conversion:
+- invalidate/refetch the lead detail query
+- invalidate leads query
+- show a clear success message
+- display that the lead is now converted
+- do not navigate away automatically
+
+7. If the lead is already converted:
+Do not show the conversion form.
+Instead display something like:
+"Converted to client"
+and the existing client relationship/status if available.
+
+8. Preserve all existing pipeline status functionality.
+
+9. Do not modify unrelated pages or backend logic.
+
+10. Run npm run build and fix any errors.
+
+Important:
+Inspect the existing lead service/controller/backend contract before implementing this. Reuse existing API patterns and query keys rather than inventing new ones.
+
+## Prompt 36
+
+Fix the LeadFlow client document upload flow.
+
+First inspect the existing frontend and backend document upload implementation, especially:
+- ClientDocumentsPage.jsx
+- document.service.js
+- document routes/controller/service
+- multer configuration
+- Document model
+
+Do not guess the API contract. Use the exact existing backend contract.
+
+Current problems:
+1. Selecting/uploading a document results in:
+POST /api/client/documents → 400 Bad Request
+2. The client UI only allows selecting one file at a time.
+3. The selected file UX is not clear enough.
+
+Requirements:
+
+1. Fix the existing 400 upload error.
+
+Verify all of these against the actual backend:
+- correct multipart/form-data request
+- correct multipart field name
+- correct API endpoint
+- authenticated cookie credentials
+- accepted MIME types
+- file size limit
+- FormData construction
+- do NOT manually set Content-Type if Axios/browser needs to set the multipart boundary
+
+The existing backend currently expects the document upload field to be "file" unless inspection shows otherwise.
+
+Preserve backend validation and security. Do not weaken file validation just to make the upload work.
+
+2. Improve client document selection.
+
+Allow the client to select multiple documents in one file-picker action.
+
+Use the existing single-document backend endpoint rather than redesigning the backend unless absolutely necessary.
+
+Implementation approach:
+- Add `multiple` to the file input.
+- Store all selected files locally.
+- Display a selected-files list with:
+  - filename
+  - file size
+  - file type
+  - remove button
+- Validate each selected file before upload:
+  - PDF
+  - JPG/JPEG
+  - PNG
+  - max 10 MB per file
+- Invalid files should be clearly reported while valid files remain selectable.
+
+3. Upload multiple selected files sequentially using the existing single-file API.
+
+Do NOT send an array to the existing endpoint if the backend only accepts one file.
+
+For each valid file:
+- create FormData
+- append the file using the backend's exact expected field name
+- upload
+- continue to the next file even if one file fails
+
+Show per-file status:
+- Pending
+- Uploading
+- Uploaded
+- Failed
+
+Prevent duplicate submission while the upload batch is running.
+
+4. After successful uploads:
+- invalidate/refetch `['client', 'documents']`
+- preserve the existing Socket.IO/polling processing-status behavior
+- clear successfully uploaded files from the selection list
+
+5. Error handling:
+- Show the actual useful backend error message instead of only "Request failed with status code 400".
+- Do not show raw Axios stack traces.
+- If one file fails, show which file failed and why.
+
+6. Preserve the existing background document processing flow:
+UPLOADED → PROCESSING → APPROVED/FAILED
+
+Do not expose R2 credentials, storage keys, or direct private storage URLs.
+
+7. Keep the UI practical and consistent with the existing LeadFlow design.
+
+8. Run:
+npm run build
+
+Fix all build errors.
+
+At the end report:
+- root cause of the 400 error
+- files changed
+- whether backend was changed
+- how multiple-file selection works
+- build result
+
+## Prompt 37
+
+Implement the admin/advisor document section on the Lead Detail page.
+
+Context:
+- LeadFlow already has a working client document upload system.
+- Client documents are stored in MongoDB as metadata and actual files in Cloudflare R2.
+- Backend already exposes:
+  GET /api/leads/:leadId/documents
+- Do not change the backend document API or document processing behavior.
+- Do not expose R2 credentials or private storage URLs.
+
+Requirements:
+
+1. Update:
+   client/src/pages/LeadDetailPage.jsx
+
+2. Add a "Documents" section below the existing lead information / advisor / conversion sections.
+
+3. Fetch documents using:
+   GET /api/leads/:leadId/documents
+
+4. Display each document with:
+   - Original filename
+   - File type
+   - File size
+   - Upload date/time
+   - Current status
+   - Failure reason when status is FAILED
+   - Checked date/time when available
+
+5. Statuses must clearly show:
+   - UPLOADED
+   - PROCESSING
+   - APPROVED
+   - FAILED
+
+6. While a document is UPLOADED or PROCESSING:
+   - Show its current processing status.
+   - Continue using the existing realtime Socket.IO invalidation behavior.
+   - If the existing client document polling pattern can be safely reused, use it as a fallback.
+   - Do not introduce a new realtime architecture.
+
+7. Important:
+   - Admin/advisor should NOT be able to upload documents from this section.
+   - This is a read-only view of documents uploaded by the client.
+   - Do not display private R2 URLs.
+   - Do not add document deletion/download functionality unless an existing backend API already supports it.
+
+8. Access:
+   - Brokerage admins and advisors can see documents for leads within their brokerage.
+   - Keep existing backend authorization as the source of truth.
+
+9. UI:
+   - Match the existing LeadFlow visual style.
+   - Use a clean card/list layout.
+   - Include a useful empty state:
+     "No documents uploaded yet."
+   - Include loading and error states.
+   - Make the section responsive.
+   - Do not make the page unnecessarily complicated.
+
+10. Reuse existing document status badge/component if available instead of creating duplicate status styling.
+
+11. After implementation:
+   - Run npm run build.
+   - Do not modify unrelated features.
+
+## Prompt 38
+
+Fix the document card grid spacing only.
+
+- Make every document card in the grid have a consistent height.
+- Reserve a fixed/minimum-height area below the filename for the optional failure reason.
+- If a document is APPROVED and has no failure reason, keep that same reserved space empty so APPROVED and FAILED cards remain equal height.
+- Add a little top padding/margin before the bottom metadata row containing status + Uploaded + Checked timestamps so it does not look attached to the content above.
+- Keep the existing 3-column responsive grid.
+- Do not change APIs, document data, status logic, processing behavior, or any other functionality.
+
+## Prompt 39
