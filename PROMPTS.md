@@ -3987,3 +3987,171 @@ At the end report:
 - manual tests remaining
 
 ## Prompt 29
+
+Implement LeadFlow frontend realtime updates using the existing Socket.IO backend.
+
+IMPORTANT:
+- Work ONLY inside client/.
+- Do NOT modify server/.
+- Use the existing LeadFlow React skill, design-craft, and tailwind-best-practices skills.
+- Use the existing Socket.IO backend contract. Do not invent events.
+- Do not add unnecessary dependencies.
+- Do not create a second global state system for realtime data.
+- Use TanStack Query invalidation/refetching as the primary way to synchronize server state.
+- Do not commit.
+
+BACKEND REALTIME CONTRACT
+
+The backend already initializes Socket.IO and authenticates connections using the HTTP-only JWT cookie.
+
+Existing events include:
+
+lead:updated
+document:updated
+
+The backend already places authenticated tenant users into:
+brokerage:<brokerageId>
+
+The frontend must not manually choose or join arbitrary brokerage rooms.
+
+REALTIME CLIENT
+
+1. Add the Socket.IO client dependency if it is not already installed.
+
+2. Create a centralized Socket.IO client/service.
+
+The socket connection should:
+- use the existing API/server origin
+- send credentials/cookies
+- connect only when the user is authenticated
+- disconnect cleanly when the user logs out
+- avoid duplicate connections during React development/StrictMode
+- not create one socket per page/component
+
+3. Integrate realtime into the authenticated application lifecycle.
+
+The socket should be initialized from the authenticated application layer/layout rather than separately from Dashboard, Leads, Documents, etc.
+
+Do not connect on the login page while unauthenticated.
+
+LEAD UPDATES
+
+Listen for:
+lead:updated
+
+When received:
+- invalidate ['leads']
+- invalidate ['dashboard', 'pipeline']
+- invalidate the affected ['lead', leadId] query when lead ID is available
+
+Do not manually mutate the entire Kanban state from the socket payload.
+
+Let TanStack Query refetch the authoritative backend state.
+
+This should make:
+- Kanban updates
+- dashboard counts
+- lead detail
+stay synchronized.
+
+DOCUMENT UPDATES
+
+Listen for:
+document:updated
+
+When received:
+- invalidate ['client', 'documents']
+- invalidate ['client', 'document', documentId] when document ID is available
+
+This should update:
+UPLOADED
+→ PROCESSING
+→ APPROVED / FAILED
+
+without requiring the client to manually refresh.
+
+POLLING
+
+The Client Documents page currently polls while documents are UPLOADED/PROCESSING.
+
+After realtime is implemented:
+- keep the existing polling as a fallback, but reduce unnecessary polling if appropriate
+- do not introduce aggressive polling
+- realtime should be the primary update mechanism
+
+Do not make the system dependent solely on WebSockets.
+
+CONNECTION STATES
+
+Provide a lightweight connection state if useful:
+- connected
+- reconnecting/disconnected
+
+Do not create a large notification system.
+
+If the socket disconnects:
+- application must continue working normally
+- normal TanStack Query/API operations must continue
+- do not show intrusive errors
+
+If it reconnects:
+- optionally invalidate relevant active queries so the UI catches up with changes missed while disconnected
+
+ROLE / TENANT SAFETY
+
+Do not send brokerageId, clientId, or room identifiers from the frontend to authorize access.
+
+The backend remains responsible for:
+- JWT authentication
+- brokerage room membership
+- tenant isolation
+
+The frontend only connects using the authenticated session.
+
+CLEANUP
+
+Ensure:
+- one socket connection per authenticated application session
+- listeners are registered once
+- listeners are removed on cleanup
+- socket disconnects on logout
+- no memory leaks
+- no duplicate event handling
+
+TANSTACK QUERY
+
+Use the existing query keys created by the frontend:
+
+['dashboard', 'pipeline']
+['leads']
+['lead', leadId]
+['client', 'documents']
+['client', 'document', documentId]
+
+Do not introduce duplicate query keys for the same resources.
+
+VERIFICATION
+
+Run:
+npm run build
+
+Also verify:
+- authenticated CRM user connects successfully
+- lead status changed from another request updates the Kanban/dashboard after socket event
+- document status updates after backend processing
+- client logout disconnects the socket
+- unauthenticated user does not maintain a socket connection
+- refreshing/reloading still works if Socket.IO is unavailable
+- no duplicate socket connections/listeners are created
+- no server files changed
+
+At the end report:
+- files changed
+- dependency changes
+- socket lifecycle implementation
+- events handled
+- TanStack Query invalidations
+- build result
+- any manual realtime test remaining
+
+## Prompt 30
