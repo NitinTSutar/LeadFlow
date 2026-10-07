@@ -3,7 +3,7 @@ import { requireAuth } from "../middleware/auth.middleware.js";
 import { requireRole } from "../middleware/role.middleware.js";
 import { create, detail, list, remove, update } from "../controllers/email-template.controller.js";
 
-const router = Router();
+const router = Router({ mergeParams: true });
 router.use(requireAuth, requireRole("brokerageAdmin", "platformAdmin"));
 router.post("/", create);
 router.get("/", list);

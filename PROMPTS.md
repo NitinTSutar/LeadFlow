@@ -2500,3 +2500,367 @@ Return a concise summary of:
 - verification performed
 
 ## Prompt 17 
+
+Audit the entire server route structure for nested Express routers.
+
+We just found a bug where routers mounted under a parameterized parent route such as:
+
+router.use("/:id/task-triggers", taskTriggerRoutes);
+router.use("/:id/email-templates", emailTemplateRoutes);
+
+were created with Router() instead of Router({ mergeParams: true }), causing req.params.id to be undefined inside the child router and resulting in "Invalid ID." errors.
+
+Audit ALL server route files and their mount points for this class of bug.
+
+Requirements:
+1. Inspect every route file under server/src/routes.
+2. Inspect where each route is mounted in the parent routes/app.
+3. Identify child routers mounted under parameterized parent paths such as "/:id/...", "/:brokerageId/...", etc.
+4. Check whether the child router actually reads those parent route parameters through req.params.
+5. Where required, change:
+   Router()
+   to:
+   Router({ mergeParams: true })
+6. Do NOT add mergeParams blindly to every router. Only change routers where parent route parameters need to be available.
+7. Do not change API paths, controller behavior, authorization logic, business logic, or unrelated code.
+8. Check for the same issue across advisors, task-triggers, email-templates, and any other nested routers.
+9. After making the changes, review the route mounting hierarchy once more to ensure there are no remaining parent-param propagation issues.
+10. Keep the changes minimal and focused on this bug class.
+
+Do not refactor unrelated code.
+
+## Prompt 18 
+
+Fix the LeadFlow lead contact-method validation bug.
+
+Context:
+A lead must always have at least one usable contact method because an advisor needs a way to contact the lead.
+
+Current required behavior:
+- email OR phone must be provided
+- email + phone is allowed
+- email only is allowed
+- phone only is allowed
+- neither email nor phone must be rejected
+
+Apply this rule consistently to:
+1. Manual lead creation via POST /api/leads
+2. Tally/external lead ingestion
+
+Implementation requirements:
+1. Inspect the existing lead creation flow, lead service, controller, model validation, and Tally service before making changes.
+2. Reuse the existing email/phone normalization utilities from the duplicate-detection implementation.
+3. Centralize the "at least one contact method" validation if there is a clean existing utility/service location for it. Do not duplicate the same validation logic unnecessarily.
+4. Preserve the existing tenant-scoped duplicate detection behavior:
+   - duplicate matching is still brokerage-scoped
+   - email OR normalized phone can identify a duplicate
+   - no global uniqueness should be introduced
+5. Preserve existing Tally webhook idempotency and form-to-brokerage mapping.
+6. Do not change unrelated APIs or frontend code.
+7. Keep the current API architecture: route → controller → service → model/utility.
+8. Return a clear 400 validation response when both contact methods are missing.
+9. Add/update focused tests if the project already has a test setup; otherwise do not introduce a new testing framework just for this fix.
+10. Do not overengineer this fix.
+
+Expected behavior examples:
+- { email: "test@example.com", phone: "1234567890" } → allowed
+- { email: "test@example.com" } → allowed
+- { phone: "1234567890" } → allowed
+- { email: "", phone: "" } → rejected
+- { } → rejected
+
+After implementation:
+- Review the changed files for consistency.
+- Do not modify unrelated functionality.
+- Do not update documentation or PROMPTS.md as part of this task.
+
+## Prompt 19
+
+We have a regression in manual lead creation.
+
+Before the recent contact-method validation fix, this exact payload successfully created a lead:
+
+{
+  "firstName": "Pipeline",
+  "lastName": "Test",
+  "email": "pipeline@test.com",
+  "phone": "9000000011",
+  "source": "manual"
+}
+
+Now the same type of payload returns:
+
+{
+  "message": "Lead validation failed."
+}
+
+The controller hides the actual Mongoose ValidationError behind the generic 422 response.
+
+Do NOT change functionality yet.
+
+Inspect the current lead creation flow and identify the exact Mongoose validation error and field that is failing.
+
+Check:
+- server/src/services/lead.service.js
+- server/src/models/lead.model.js
+- server/src/utils/lead-identity.js
+- any recent changes related to contact-method validation
+
+Temporarily add useful server-side debugging if necessary, or otherwise inspect the error object, so we can determine:
+1. Which field fails validation
+2. What value is being passed to that field
+3. Why it worked before the recent contact-method validation change
+
+Do not implement a fix yet.
+Do not modify unrelated functionality.
+
+Return the exact root cause and the specific file/line responsible.
+
+## Prompt 20
+
+In server/src/controllers/lead.controller.js, temporarily improve the generic Mongoose ValidationError handling for the create-lead debugging case.
+
+When error.name === "ValidationError", log the actual validation details on the server:
+- error.message
+- Object.keys(error.errors)
+- for each error.errors[field], log:
+  - field
+  - kind
+  - path
+  - value
+  - message
+
+Do not expose sensitive data in the API response.
+Keep the existing 422 response:
+{
+  "message": "Lead validation failed."
+}
+
+Do not change lead creation logic, model validation, contact-method validation, duplicate detection, Tally behavior, or any other functionality.
+
+This is temporary debugging only. Tell me exactly where you added the logging.
+
+## Prompt 21
+
+Remove the temporary ValidationError debugging logs that were added in:
+
+server/src/controllers/lead.controller.js
+
+Restore the previous generic ValidationError handling:
+
+if (error.name === "ValidationError") {
+  return res.status(422).json({ message: "Lead validation failed." });
+}
+
+Do not change any lead creation logic, validation logic, duplicate detection, Tally behavior, or unrelated functionality.
+
+After the change, run the existing syntax/import checks and confirm only the temporary debugging logs were removed.
+
+## Prompt 22
+
+Fix the missing email trigger for newly created NEW leads.
+
+Problem:
+A new lead can be successfully created with status NEW, but the active NEW email template is not triggered.
+
+Observed during testing:
+- POST /api/leads successfully creates the lead with status NEW.
+- No email was received.
+- No Resend delivery was created.
+- No email-related server output appeared.
+
+Existing behavior:
+Email triggers already work from successful pipeline status transitions. Preserve that behavior.
+
+Required behavior:
+Whenever a lead is successfully created in the NEW stage, trigger the active NEW-stage email template asynchronously.
+
+This must work for:
+1. Manual lead creation
+2. Tally/external lead ingestion
+
+Implementation requirements:
+1. Inspect the existing email-trigger service and the current lead creation flow before changing code.
+2. Reuse the existing email trigger infrastructure. Do not create a second email-sending implementation.
+3. Trigger the email only after the lead has been successfully persisted.
+4. Email sending must be asynchronous/non-blocking. A Resend/provider failure must NOT cause lead creation to fail.
+5. If there is no active NEW template, lead creation must still succeed.
+6. Preserve the existing email delivery deduplication behavior.
+7. Preserve tenant isolation.
+8. Preserve existing CONTACTED/other pipeline-stage email triggers.
+9. Apply the same behavior to Tally-created NEW leads without breaking webhook idempotency.
+10. Do not add Redis, queues, or new infrastructure.
+11. Do not modify frontend code.
+12. Do not modify unrelated functionality.
+13. Do not update PROMPTS.md.
+
+Important:
+Do not simply call the existing status-transition controller from lead creation. Use the existing service-level email trigger mechanism at the appropriate service layer.
+
+After implementation:
+- Run syntax/import checks.
+- Explain exactly where the NEW-stage trigger is invoked for manual and Tally lead creation.
+- Confirm that email failures cannot roll back/fail lead creation.
+
+## Prompt 23
+
+We fixed the NEW-stage email trigger so that creating a lead with status NEW should asynchronously queue/send the active NEW email template.
+
+The fix passed syntax/import checks, but I manually created a fresh NEW lead after the fix and still received no email. Resend API key is valid and was recently used, but the Resend dashboard has no new email entry for this test.
+
+Do a focused end-to-end investigation of the NEW lead email flow.
+
+Trace the exact execution path:
+
+1. Manual POST /api/leads
+2. lead.service.js lead creation
+3. queueStageEmail()
+4. email-trigger.service.js
+5. sendStageEmail()
+6. active NEW email template lookup
+7. EmailDelivery creation/update
+8. Resend API call
+9. error handling/logging
+
+Do NOT redesign the email system and do NOT modify unrelated functionality.
+
+First inspect the existing implementation and identify exactly where execution may be stopping.
+
+Then make the smallest necessary fix so that:
+- Creating a valid lead with status NEW triggers the active NEW-stage email.
+- Email sending remains asynchronous and must not delay/fail lead creation.
+- Missing template remains a no-op.
+- Missing lead email remains a no-op.
+- Resend/provider failure must not fail lead creation.
+- EmailDelivery should accurately record SENT or FAILED.
+- Existing pipeline-stage email behavior must remain unchanged.
+- Existing deduplication must remain unchanged.
+
+Add only temporary diagnostic logging if absolutely necessary, and remove noisy debug logs after fixing.
+
+After the fix, run syntax/import checks for all changed files.
+
+Do not change the API contract or introduce Redis/BullMQ.
+
+## Prompt 24
+
+We need to switch LeadFlow's email transport from Resend to Gmail SMTP for the assignment/demo.
+
+IMPORTANT:
+- Do NOT redesign the existing email system.
+- Do NOT modify email templates, email triggers, EmailDelivery schema, deduplication logic, pipeline status behavior, or lead creation behavior unless absolutely required for the SMTP transport.
+- Do NOT introduce Redis, BullMQ, queues, or any new infrastructure.
+- Keep email sending asynchronous.
+- Do NOT expose or log SMTP credentials.
+- Do NOT change API contracts.
+- Do NOT touch frontend code.
+- Do NOT modify unrelated files.
+
+Current email architecture:
+Lead status/creation
+→ email-trigger.service.js
+→ sendStageEmail()
+→ email.service.js
+→ EmailDelivery
+→ external email provider
+
+The current provider is Resend. We now want Gmail SMTP instead.
+
+Environment variables already added to server/.env:
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=<configured locally>
+SMTP_PASSWORD=<configured locally>
+EMAIL_FROM=LeadFlow <configured locally>
+
+The actual credentials exist only in server/.env.
+NEVER print, expose, commit, or hardcode their values.
+
+TASKS:
+
+1. Inspect the current email implementation first.
+
+2. Identify exactly where Resend is currently initialized and used.
+
+3. Replace ONLY the provider/transport layer with Gmail SMTP using Nodemailer.
+
+Use:
+- smtp.gmail.com
+- port 587
+- secure false
+- authentication from SMTP_USER and SMTP_PASSWORD
+
+Use the existing EMAIL_FROM environment variable as the sender.
+
+4. Add Nodemailer as a server dependency if it is not already installed.
+
+5. Update email.service.js so the existing email-trigger service can continue calling the same email sending function without needing architectural changes.
+
+The existing callers should not need to know whether the provider is Resend or SMTP.
+
+6. Preserve the existing behavior:
+- Email templates continue working exactly as before.
+- {{clientName}} and {{advisorName}} placeholders continue working.
+- NEW-stage email trigger continues working.
+- Pipeline-stage email triggers continue working.
+- EmailDelivery records continue being created.
+- Successful sends continue resulting in SENT.
+- Failed sends continue resulting in FAILED.
+- Missing template remains a no-op.
+- Missing lead email remains a no-op.
+- Duplicate delivery protection remains unchanged.
+- Email/provider failure must NEVER fail or rollback lead creation/status transition.
+- Email sending must remain asynchronous.
+
+7. Remove the temporary diagnostic/debug logging that was added while investigating the NEW-stage email trigger issue.
+
+Specifically:
+- Remove noisy temporary logs that were only added for debugging the email flow.
+- Keep useful production-level error logging for actual SMTP/email failures.
+- Never log SMTP_PASSWORD, API keys, email credentials, or authentication details.
+
+8. Remove the active Resend dependency/configuration from the email sending path.
+
+If the Resend package is no longer used anywhere after the migration, remove it from package.json/package-lock.json.
+
+Do NOT remove the old RESEND_API_KEY or other Resend variables from .env.example unless you confirm they are no longer needed; if appropriate, replace the provider-specific configuration with the SMTP variables in .env.example.
+
+The final active email path must be:
+
+LeadFlow
+→ existing email trigger system
+→ existing email service
+→ Gmail SMTP
+→ recipient
+
+9. Add clear configuration validation if appropriate:
+- SMTP_HOST
+- SMTP_PORT
+- SMTP_USER
+- SMTP_PASSWORD
+- EMAIL_FROM
+
+Do not validate/log the actual secret values.
+
+10. Before finishing:
+- Run syntax checks for all changed server JavaScript files.
+- Run the application import/startup check.
+- Confirm there are no remaining active Resend imports/usages in the email sending path.
+- Confirm there are no temporary debug logs remaining.
+- Confirm no secrets are tracked by git.
+
+11. Do NOT modify any unrelated backend functionality.
+
+At the end, report:
+- files changed
+- what changed in each file
+- whether Resend is completely removed from the active email path
+- whether temporary debug logs were removed
+- syntax/import verification results
+- any remaining manual test required
+
+Do NOT make a commit.
+
+# Prompt 25

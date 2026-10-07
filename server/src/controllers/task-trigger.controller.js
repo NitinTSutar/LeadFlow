@@ -3,6 +3,7 @@ import { createTrigger, deleteTrigger, listTriggers, updateTrigger, validateTrig
 function handle(error, res) {
   if (["INVALID_BROKERAGE_ID", "INVALID_TRIGGER_ID"].includes(error.message)) return res.status(400).json({ message: "Invalid ID." });
   if (error.message === "BROKERAGE_FORBIDDEN") return res.status(403).json({ message: "Brokerage access denied." });
+  if (error.message === "DUPLICATE_TRIGGER" || error.code === 11000) return res.status(409).json({ message: "An identical active task trigger already exists for this brokerage and stage." });
   if (["BROKERAGE_NOT_FOUND", "TRIGGER_NOT_FOUND"].includes(error.message)) return res.status(404).json({ message: "Resource not found." });
   if (["INVALID_STAGE", "INVALID_TITLE", "INVALID_DUE_TIME"].includes(error.message) || error.name === "ValidationError") return res.status(400).json({ message: "Invalid task trigger." });
   throw error;

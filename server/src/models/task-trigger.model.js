@@ -14,6 +14,10 @@ const taskTriggerSchema = new mongoose.Schema(
 );
 
 taskTriggerSchema.index({ brokerageId: 1, stage: 1, isActive: 1 });
+taskTriggerSchema.index(
+  { brokerageId: 1, stage: 1, title: 1, description: 1, dueInMinutes: 1 },
+  { unique: true, partialFilterExpression: { isActive: true } },
+);
 
 const TaskTrigger = mongoose.model("TaskTrigger", taskTriggerSchema);
 

@@ -2,7 +2,8 @@ import mongoose from "mongoose";
 import Lead, { LEAD_STATUSES } from "../models/lead.model.js";
 import User from "../models/user.model.js";
 import { brokerageFilter } from "../middleware/tenant.middleware.js";
-import { normalizeLeadEmail, normalizeLeadPhone } from "../utils/lead-identity.js";
+import { hasLeadContactMethod, normalizeLeadEmail, normalizeLeadPhone } from "../utils/lead-identity.js";
+import { queueStageEmail } from "./email-trigger.service.js";
 
 const writableFields = ["firstName", "lastName", "email", "phone", "source", "assignedAdvisorId", "notes"];
 
@@ -61,6 +62,7 @@ export async function getLead(user, leadId) {
 
 export async function createLead(user, data) {
   if (!user.brokerageId) throw new Error("BROKERAGE_CONTEXT_REQUIRED");
+  if (!hasLeadContactMethod(data.email, data.phone)) throw new Error("CONTACT_METHOD_REQUIRED");
   const normalizedEmail = normalizeLeadEmail(data.email);
   const normalizedPhone = normalizeLeadPhone(data.phone);
   const duplicateConditions = [];
@@ -79,14 +81,16 @@ export async function createLead(user, data) {
     brokerageId: user.brokerageId,
     firstName: data.firstName,
     lastName: data.lastName,
-    email: data.email,
-    phone: data.phone,
+    email: normalizedEmail || undefined,
+    phone: normalizedPhone || undefined,
     source: data.source ?? "manual",
     status: data.status ?? "NEW",
     assignedAdvisorId,
     notes: data.notes,
   });
-  return lead.save();
+  const savedLead = await lead.save();
+  if (savedLead.status === "NEW") queueStageEmail(savedLead);
+  return savedLead;
 }
 
 export async function updateLead(user, leadId, data) {

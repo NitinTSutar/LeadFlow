@@ -5,3 +5,7 @@ export function normalizeLeadEmail(email) {
 export function normalizeLeadPhone(phone) {
   return typeof phone === "string" ? phone.replace(/[^\d+]/g, "") : "";
 }
+
+export function hasLeadContactMethod(email, phone) {
+  return Boolean(normalizeLeadEmail(email) || normalizeLeadPhone(phone));
+}

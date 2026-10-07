@@ -15,7 +15,9 @@ async function authorize(actor, brokerageId) {
 
 export async function createTrigger(actor, brokerageId, data) {
   await authorize(actor, brokerageId);
-  return TaskTrigger.create({ brokerageId, ...data });
+  const normalized = normalizeTriggerData(data);
+  if (await TaskTrigger.exists({ brokerageId, ...normalized, isActive: true })) throw new Error("DUPLICATE_TRIGGER");
+  return TaskTrigger.create({ brokerageId, ...normalized });
 }
 
 export async function listTriggers(actor, brokerageId) {
@@ -26,9 +28,23 @@ export async function listTriggers(actor, brokerageId) {
 export async function updateTrigger(actor, brokerageId, triggerId, data) {
   await authorize(actor, brokerageId);
   assertId(triggerId, "trigger");
-  const trigger = await TaskTrigger.findOneAndUpdate({ _id: triggerId, brokerageId }, { $set: data }, { new: true, runValidators: true });
+  const current = await TaskTrigger.findOne({ _id: triggerId, brokerageId });
+  if (!current) throw new Error("TRIGGER_NOT_FOUND");
+  const normalized = normalizeTriggerData({ ...current.toObject(), ...data });
+  if (normalized.isActive && await TaskTrigger.exists({ _id: { $ne: triggerId }, brokerageId, ...normalized, isActive: true })) throw new Error("DUPLICATE_TRIGGER");
+  const trigger = await TaskTrigger.findOneAndUpdate({ _id: triggerId, brokerageId }, { $set: normalized }, { new: true, runValidators: true });
   if (!trigger) throw new Error("TRIGGER_NOT_FOUND");
   return trigger;
+}
+
+function normalizeTriggerData(data) {
+  return {
+    stage: data.stage,
+    title: data.title.trim(),
+    description: data.description?.trim() || "",
+    dueInMinutes: data.dueInMinutes,
+    isActive: data.isActive !== false,
+  };
 }
 
 export async function deleteTrigger(actor, brokerageId, triggerId) {

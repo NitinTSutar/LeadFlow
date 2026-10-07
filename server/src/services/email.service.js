@@ -1,11 +1,21 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 import { config } from "../config/env.js";
 
-let resend;
+let transporter;
 
-function getResend() {
-  if (!resend) resend = new Resend(config.resendApiKey);
-  return resend;
+function getTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: config.smtp.host,
+      port: config.smtp.port,
+      secure: config.smtp.secure,
+      auth: {
+        user: config.smtp.user,
+        pass: config.smtp.password,
+      },
+    });
+  }
+  return transporter;
 }
 
 export function renderEmailTemplate(value, lead, advisorName = "") {
@@ -14,5 +24,10 @@ export function renderEmailTemplate(value, lead, advisorName = "") {
 }
 
 export async function sendEmail({ recipient, subject, body }) {
-  return getResend().emails.send({ from: config.emailFrom, to: recipient, subject, text: body });
+  return getTransporter().sendMail({
+    from: config.emailFrom,
+    to: recipient,
+    subject,
+    text: body,
+  });
 }

@@ -3,7 +3,8 @@ import TallyIntegration from "../models/tally-integration.model.js";
 import ProcessedWebhookEvent from "../models/processed-webhook-event.model.js";
 import Lead from "../models/lead.model.js";
 import { config } from "../config/env.js";
-import { normalizeLeadEmail, normalizeLeadPhone } from "../utils/lead-identity.js";
+import { hasLeadContactMethod, normalizeLeadEmail, normalizeLeadPhone } from "../utils/lead-identity.js";
+import { queueStageEmail } from "./email-trigger.service.js";
 
 export function verifyTallySignature(payload, signature) {
   if (!config.tallyWebhookSecret || typeof signature !== "string") return false;
@@ -74,11 +75,15 @@ export async function processTallyWebhook(payload) {
   }
 
   const mapped = mapTallyFields(payload.data.fields);
-  if (!mapped.firstName || !mapped.lastName || !mapped.email || !mapped.phone) throw malformed("Required lead fields are missing.");
+  if (!mapped.firstName || !mapped.lastName) throw malformed("Required lead fields are missing.");
+  if (!hasLeadContactMethod(mapped.email, mapped.phone)) throw malformed("Email or phone is required.");
 
   const normalizedEmail = normalizeLeadEmail(mapped.email);
   const normalizedPhone = normalizeLeadPhone(mapped.phone);
-  const duplicate = await Lead.findOne({ brokerageId: integration.brokerageId, $or: [{ normalizedEmail }, { normalizedPhone }] });
+  const duplicateConditions = [];
+  if (normalizedEmail) duplicateConditions.push({ normalizedEmail });
+  if (normalizedPhone) duplicateConditions.push({ normalizedPhone });
+  const duplicate = await Lead.findOne({ brokerageId: integration.brokerageId, $or: duplicateConditions });
 
   if (duplicate) {
     await markProcessed({ eventId, eventType: payload.eventType, formId, processedAt: new Date() });
@@ -89,15 +94,16 @@ export async function processTallyWebhook(payload) {
     brokerageId: integration.brokerageId,
     firstName: mapped.firstName,
     lastName: mapped.lastName,
-    email: normalizedEmail,
+    email: normalizedEmail || undefined,
     normalizedEmail,
-    phone: normalizedPhone,
+    phone: normalizedPhone || undefined,
     normalizedPhone,
     source: "tally",
     status: "NEW",
     notes: mapped.notes,
   });
 
+  queueStageEmail(lead);
   await markProcessed({ eventId, eventType: payload.eventType, formId, processedAt: new Date() });
   return { outcome: "created", leadId: lead._id };
 }

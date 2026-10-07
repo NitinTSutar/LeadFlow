@@ -2,12 +2,15 @@ import { createLead, deleteLead, getLead, listLeads, updateLead } from "../servi
 
 function handleServiceError(error, res) {
   if (error.message === "DUPLICATE_LEAD") return res.status(409).json({ message: "Duplicate lead detected.", duplicateLeadId: error.duplicateLeadId });
+  if (error.message === "CONTACT_METHOD_REQUIRED") return res.status(400).json({ message: "Email or phone is required." });
   if (error.message === "INVALID_ID") return res.status(400).json({ message: "Invalid lead ID." });
   if (error.message === "INVALID_ADVISOR" || error.message === "INVALID_ADVISOR_ID") {
     return res.status(422).json({ message: "Invalid advisor assignment." });
   }
   if (error.message === "BROKERAGE_CONTEXT_REQUIRED") return res.status(403).json({ message: "Brokerage context is required." });
-  if (error.name === "ValidationError") return res.status(422).json({ message: "Lead validation failed." });
+  if (error.name === "ValidationError") {
+    return res.status(422).json({ message: "Lead validation failed." });
+  }
   throw error;
 }
 

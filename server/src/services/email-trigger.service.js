@@ -5,7 +5,11 @@ import { renderEmailTemplate, sendEmail } from "./email.service.js";
 
 export async function sendStageEmail(lead) {
   if (!lead.email) return;
-  const template = await EmailTemplate.findOne({ brokerageId: lead.brokerageId, stage: lead.status, isActive: true });
+  const template = await EmailTemplate.findOne({
+    brokerageId: lead.brokerageId,
+    stage: lead.status,
+    $or: [{ isActive: true }, { isActive: { $exists: false } }],
+  });
   if (!template) return;
 
   let delivery;
@@ -33,6 +37,17 @@ export async function sendStageEmail(lead) {
     await EmailDelivery.updateOne({ _id: delivery._id }, { $set: { status: "SENT", sentAt: new Date() } });
   } catch (error) {
     console.error("Pipeline email delivery failed:", error.message);
-    await EmailDelivery.updateOne({ _id: delivery._id }, { $set: { status: "FAILED", failureReason: "Email delivery failed." } });
+    await EmailDelivery.updateOne(
+      { _id: delivery._id },
+      { $set: { status: "FAILED", failureReason: "Email delivery failed." } },
+    ).catch((updateError) => {
+      console.error("Failed to record email delivery failure:", updateError.message);
+    });
   }
+}
+
+export function queueStageEmail(lead) {
+  Promise.resolve()
+    .then(() => sendStageEmail(lead))
+    .catch((error) => console.error("Pipeline email trigger failed:", error.message));
 }
