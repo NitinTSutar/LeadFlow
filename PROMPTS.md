@@ -6129,3 +6129,18 @@ Requirements:
 
 Keep this change strictly limited to removing the development-only endpoint.
 
+## Prompt 49
+
+Fix the Vercel SPA refresh 404 issue in the LeadFlow frontend.
+
+Problem:
+Direct navigation or browser refresh on React Router routes such as /login, /dashboard, /leads, /client/case, and /platform/dashboard returns Vercel 404 NOT_FOUND because Vercel is trying to resolve the client-side route as a server file.
+
+Requirements:
+1. Add the appropriate Vercel SPA rewrite configuration for the frontend.
+2. If the Vercel project Root Directory is `client`, create `client/vercel.json`.
+3. Rewrite all frontend routes to `/index.html` so React Router handles client-side routing.
+4. Do not change the existing React Router route definitions.
+5. Do not change authentication, API URLs, backend routes, or application behavior.
+6. Verify the Vercel configuration is valid and run the frontend build.
+7. Keep the change minimal and production-safe.
