@@ -5,6 +5,7 @@ import { create, createAdmin, detail, list, listAdmins, remove, removeAdmin, upd
 import advisorRoutes from "./advisor.routes.js";
 import taskTriggerRoutes from "./task-trigger.routes.js";
 import emailTemplateRoutes from "./email-template.routes.js";
+import tallyIntegrationRoutes from "./tally-integration.routes.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -20,5 +21,6 @@ router.post("/:id/admins", requireRole("platformAdmin"), createAdmin);
 router.use("/:id/advisors", advisorRoutes);
 router.use("/:id/task-triggers", taskTriggerRoutes);
 router.use("/:id/email-templates", emailTemplateRoutes);
+router.use("/:id/tally-integrations", tallyIntegrationRoutes);
 
 export default router;

@@ -6144,3 +6144,344 @@ Requirements:
 5. Do not change authentication, API URLs, backend routes, or application behavior.
 6. Verify the Vercel configuration is valid and run the frontend build.
 7. Keep the change minimal and production-safe.
+
+## Prompt 50
+
+Inspect the existing LeadFlow backend and find how TallyIntegration records are created or seeded.
+
+I need to test the deployed Tally webhook.
+
+Show me:
+1. Whether there is already a TallyIntegration record in MongoDB.
+2. The mapped formId.
+3. Which brokerageId it maps to.
+4. Whether active is true.
+5. The exact API endpoint or existing mechanism used to create a TallyIntegration if no record exists.
+
+Do NOT modify any files.
+Do NOT expose any secrets.
+Do NOT change database data.
+Just inspect and report the relevant existing implementation/data-access path.
+
+## Prompt 51
+
+Implement proper Tally integration management for LeadFlow.
+
+Context:
+- LeadFlow is a MERN multi-tenant mortgage brokerage CRM.
+- Tally is the external lead source required by the assignment.
+- The existing Tally webhook is already implemented:
+  POST /api/webhooks/tally
+- Existing TallyIntegration model contains:
+  - formId
+  - brokerageId
+  - active
+  - timestamps
+- formId currently has a unique index.
+- The webhook currently resolves the brokerage using:
+  TallyIntegration.findOne({ formId, active: true })
+- There are currently ZERO TallyIntegration records in MongoDB.
+- There is currently no API/UI mechanism to provision TallyIntegration records.
+- Existing roles:
+  platformAdmin
+  brokerageAdmin
+  advisor
+  client
+- Existing platform-admin brokerage management already exists.
+- Existing architecture is:
+  Route -> Controller -> Service -> Model/DB.
+- Controllers must remain thin.
+- Existing tenant isolation/RBAC utilities must be reused.
+
+Goal:
+Add a proper platform-admin-only Tally integration management flow so Tally form mappings are provisioned through the application instead of direct MongoDB manipulation.
+
+Requirements:
+
+1. Backend APIs
+
+Add:
+
+POST   /api/brokerages/:id/tally-integrations
+GET    /api/brokerages/:id/tally-integrations
+PATCH  /api/brokerages/:id/tally-integrations/:integrationId
+DELETE /api/brokerages/:id/tally-integrations/:integrationId
+
+2. Authorization
+
+Only:
+- platformAdmin
+
+may create, list, update, or delete Tally integrations.
+
+Do NOT allow:
+- brokerageAdmin
+- advisor
+- client
+
+to manage Tally integrations.
+
+PlatformAdmin may manage integrations for any existing brokerage.
+
+3. Brokerage validation
+
+For every operation:
+- validate brokerage ID
+- ensure brokerage exists
+- ensure the integration belongs to the requested brokerage
+- never trust brokerageId from request body
+
+4. Create integration
+
+Accept:
+
+{
+  "formId": "..."
+}
+
+Set:
+- brokerageId from the authorized URL context
+- formId trimmed
+- active = true
+
+Do not accept active during creation unless there is a strong existing project convention requiring it.
+
+5. Duplicate form protection
+
+A Tally form must never be mapped to multiple brokerages.
+
+The existing unique index on formId must remain.
+
+Return a clean 409 response if the formId is already mapped.
+
+Do not silently reassign an existing Tally form to another brokerage.
+
+6. Update integration
+
+Allow:
+- formId
+- active
+
+Validate the new formId and preserve the unique constraint.
+
+Do not allow changing brokerageId through PATCH.
+
+7. Delete behavior
+
+Prefer safe deactivation over destructive deletion if that fits the existing project conventions.
+
+If implementing DELETE, make it deactivate the integration rather than physically deleting it, unless the existing architecture strongly favors hard deletion.
+
+The webhook must stop processing submissions for inactive integrations.
+
+8. Response data
+
+Return only safe integration information:
+
+{
+  "id": "...",
+  "formId": "...",
+  "brokerageId": "...",
+  "active": true,
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+
+Never return:
+- TALLY_WEBHOOK_SECRET
+- JWT secrets
+- any other environment secret
+
+9. Service layer
+
+Create/use tally integration service methods rather than putting database logic inside controllers.
+
+Keep controllers thin.
+
+10. Preserve existing webhook
+
+Do NOT redesign or break:
+POST /api/webhooks/tally
+
+Preserve:
+- Tally-Signature verification
+- event type handling
+- event idempotency
+- formId -> brokerage mapping
+- duplicate-person detection
+- normalized email/phone
+- tenant isolation
+- lead creation
+- source = tally
+- status = NEW
+- stage email trigger
+
+11. Frontend
+
+Add a focused Tally Integration section to the existing Platform Admin brokerage management area.
+
+Do not create a huge new section.
+
+For each brokerage, allow platformAdmin to:
+- view configured Tally forms
+- add a Tally form ID
+- activate/deactivate an integration
+- remove/deactivate an integration
+
+Show:
+- Form ID
+- Status
+- created/updated date if useful
+- actions
+
+Do not display webhook secrets.
+
+12. UX
+
+Include:
+- loading state
+- empty state
+- validation
+- duplicate-form error
+- success/error feedback
+- confirmation before deactivation/removal if appropriate
+
+Use existing UI patterns and TanStack Query patterns.
+
+13. Important Tally setup information
+
+The actual Tally webhook URL remains:
+
+POST /api/webhooks/tally
+
+The signing secret remains server-side:
+
+TALLY_WEBHOOK_SECRET
+
+Do not create a frontend field for the signing secret.
+
+14. Do not add:
+- OAuth
+- Redis
+- BullMQ
+- queues
+- new notification systems
+- unrelated platform features
+- new authentication mechanisms
+
+15. Inspect existing code first.
+
+Before modifying anything, inspect:
+- tally.service.js
+- tally.controller.js
+- tally.routes.js
+- tally-integration.model.js
+- brokerage routes/controller/service
+- existing platform-admin frontend pages/services
+- existing RBAC middleware
+- existing API service conventions
+
+Reuse existing patterns.
+
+16. Verification
+
+After implementation run:
+- server syntax/import checks
+- client npm run build
+
+Verify at minimum:
+
+A. Platform admin creates integration for Brokerage A.
+Expected: 201.
+
+B. List integrations.
+Expected: created integration appears.
+
+C. Same formId cannot be added to Brokerage B.
+Expected: 409.
+
+D. Deactivate integration.
+Expected: active=false.
+
+E. Webhook using an inactive form.
+Expected: rejected/not processed.
+
+F. Reactivate integration.
+Expected: active=true.
+
+G. Existing webhook still creates a lead when the integration is active.
+
+H. Existing Tally duplicate-person behavior remains intact.
+
+I. BrokerageAdmin/advisor/client cannot access integration-management APIs.
+Expected: 403.
+
+J. Cross-brokerage integration ID cannot be accessed or modified.
+
+Do not modify PROMPTS.md.
+Do not expose or print any secrets.
+
+At the end, report:
+- files changed
+- APIs added
+- frontend changes
+- authorization
+- duplicate form protection
+- delete/deactivation behavior
+- webhook compatibility
+- verification performed
+
+
+## Prompt 52
+
+Fix the current Tally integration "Invalid ID." bug only.
+
+Current request:
+
+GET /api/brokerages/6ac6a6c7373246d02b05a078/tally-integrations
+
+returns:
+
+400
+{"message":"Invalid ID."}
+
+The brokerage ID is valid.
+
+We have previously encountered the same class of bug in LeadFlow where a child Express router was mounted under a parameterized parent route but did not use mergeParams: true.
+
+Inspect the current Tally integration route mounting hierarchy.
+
+Specifically inspect:
+- server/src/routes/brokerage.routes.js
+- server/src/routes/tally-integration.routes.js
+- server/src/controllers/tally-integration.controller.js
+- server/src/services/tally-integration.service.js
+- server/src/app.js
+
+Determine whether the Tally integration child router needs:
+
+Router({ mergeParams: true })
+
+instead of:
+
+Router()
+
+If the child router reads the parent brokerage ID through req.params.id, apply mergeParams: true.
+
+Requirements:
+1. Fix only the parent route parameter propagation issue.
+2. Do not change the API URL.
+3. Do not change the brokerage ID.
+4. Do not change Tally form ID validation.
+5. Do not change Tally webhook behavior.
+6. Do not change RBAC yet.
+7. Do not add or remove any frontend functionality.
+8. Do not hardcode any brokerage ID.
+9. Do not modify unrelated routes.
+
+After the fix verify:
+- GET /api/brokerages/6ac6a6c7373246d02b05a078/tally-integrations no longer returns "Invalid ID."
+- server syntax/import checks pass.
+- git diff --check passes.
+
+Report the exact root cause and exact file changed.
