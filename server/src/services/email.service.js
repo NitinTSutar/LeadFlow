@@ -31,3 +31,24 @@ export async function sendEmail({ recipient, subject, body }) {
     text: body,
   });
 }
+
+export async function sendClientWelcomeEmail({ clientName, clientEmail, temporaryPassword }) {
+  return sendEmail({
+    recipient: clientEmail,
+    subject: "Your LeadFlow Client Account",
+    body: `Hi ${clientName},
+
+Your LeadFlow client account has been created.
+
+You can use the following credentials to log in:
+
+Login email: ${clientEmail}
+Temporary password: ${temporaryPassword}
+
+Login here:
+https://lead-flow-sandy-seven.vercel.app/
+
+Please keep these credentials secure.
+`,
+  });
+}

@@ -1,4 +1,5 @@
 import { convertLeadToClient } from "../services/client.service.js";
+import { sendClientWelcomeEmail } from "../services/email.service.js";
 
 export async function convertToClient(req, res) {
   const { password } = req.body || {};
@@ -8,6 +9,15 @@ export async function convertToClient(req, res) {
 
   try {
     const result = await convertLeadToClient(req.user, req.params.id, password);
+    try {
+      await sendClientWelcomeEmail({
+        clientName: result.user.name,
+        clientEmail: result.user.email,
+        temporaryPassword: password,
+      });
+    } catch (error) {
+      console.error("Client onboarding email delivery failed:", error.message);
+    }
     return res.status(201).json({ lead: result.lead, user: result.user });
   } catch (error) {
     if (error.message === "INVALID_LEAD_ID") return res.status(400).json({ message: "Invalid lead ID." });

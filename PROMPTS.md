@@ -6485,3 +6485,55 @@ After the fix verify:
 - git diff --check passes.
 
 Report the exact root cause and exact file changed.
+
+
+## Prompt 53
+
+Implement a minimal client onboarding email when a brokerage admin converts a lead into a client.
+
+Current behavior:
+- Brokerage admin clicks "Convert to Client".
+- The UI asks the admin to provide a temporary password.
+- The client account is created using the lead's email.
+- There is currently no email sent to the newly created client with their credentials.
+
+Required change:
+1. After a lead is successfully converted into a client, send an email to the client's email address.
+2. Use the existing email delivery/transport service already used by LeadFlow. Do not introduce another email provider or transport.
+3. The email must be plain text.
+4. Include:
+   - A short welcome message.
+   - Client login email.
+   - The temporary password entered by the brokerage admin.
+   - The LeadFlow login URL:
+     https://lead-flow-sandy-seven.vercel.app/
+5. Example email content:
+
+Subject:
+Your LeadFlow Client Account
+
+Body:
+
+Hi {{clientName}},
+
+Your LeadFlow client account has been created.
+
+You can use the following credentials to log in:
+
+Login email: {{clientEmail}}
+Temporary password: {{temporaryPassword}}
+
+Login here:
+https://lead-flow-sandy-seven.vercel.app/
+
+Please keep these credentials secure.
+
+Password reset functionality is not required now and is future scope.
+
+6. The client conversion itself must NOT fail if email delivery fails. The client should still be created successfully, and email delivery failure should be handled/logged using the existing email error-handling behavior.
+7. Do not modify the existing lead-to-client conversion behavior, authentication, password hashing, email transport, Tally integration, tasks, documents, or frontend unless required for this email.
+8. Do not store the temporary password in plaintext in the database or any persistent record. It should only be used for account creation/password hashing and the immediate email delivery.
+9. Do not expose the temporary password in API responses, logs, console output, or database records.
+10. Run server syntax checks and client build after the change.
+
+Keep this implementation minimal. No password reset flow, no new email provider, no new UI, and no unrelated refactoring.
