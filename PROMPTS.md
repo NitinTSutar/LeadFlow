@@ -6129,39 +6129,3 @@ Requirements:
 
 Keep this change strictly limited to removing the development-only endpoint.
 
-## Prompt 49 
-
-Remove the development-only platform admin creation endpoint from the LeadFlow backend before production deployment.
-
-Requirements:
-1. Remove the route:
-   POST /api/dev/create-platform-admin
-
-2. Remove its controller/service/helper code if it exists only for this endpoint.
-
-3. Remove any route registration and imports related to this development-only endpoint.
-
-4. Do NOT modify the normal platform admin authentication, login, JWT, RBAC, or existing platform admin functionality.
-
-5. Do NOT add a replacement public/admin-creation endpoint.
-
-6. Search the entire server codebase for:
-   - create-platform-admin
-   - /api/dev
-   - any references to the removed endpoint
-
-7. Confirm there are no remaining references to the development-only platform admin creation flow.
-
-8. Run:
-   - node --check on the affected server files
-   - npm run build for the client
-
-9. Do not make any unrelated changes.
-
-At the end, report:
-- files changed
-- what was removed
-- verification results
-- whether the client build passed
-
-## Prompt 50
