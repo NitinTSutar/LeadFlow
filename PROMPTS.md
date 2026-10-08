@@ -6014,3 +6014,81 @@ After implementation:
 - verify TODO Complete button still works
 
 ## Prompt 47
+
+Make ONLY these two small Platform Admin UI changes.
+
+Do not remove or change the existing Platform Dashboard pipeline summary cards.
+
+## 1. Remove ONLY the brokerage-wise pipeline table from Platform Dashboard
+
+On the Platform Admin Dashboard (`/platform/dashboard`), KEEP the existing "Pipeline summary" section and its six summary cards:
+
+- New
+- Contacted
+- Qualified
+- Application
+- Won
+- Lost
+
+These cards MUST remain visible.
+
+Remove ONLY the final brokerage-wise pipeline table shown below the cards.
+
+The table currently looks like:
+
+Brokerage | New | Contacted | Qualified | Application | Won | Lost
+
+Example:
+Brokerage A | 0 | 0 | 0 | 1 | 0 | 0
+
+Remove this table/section only because the same company-wise pipeline information is already available on the Brokerage management page.
+
+Do NOT remove:
+- Pipeline summary heading
+- Six pipeline summary cards
+- Platform metric cards
+- Brokerage management navigation
+- Any backend pipeline functionality
+
+This is a frontend-only cleanup.
+
+## 2. Add Back navigation to Brokerage Admin management
+
+On the Platform Admin Brokerage management page, when the platform admin clicks the "Manage Admins" action for a brokerage, the admin-management page currently has no obvious way to return to the normal Brokerage list.
+
+Add a clear navigation control near the top of that page:
+
+"← Back to brokerages"
+
+Clicking it must return to the Platform Admin Brokerage list page.
+
+Use the existing React Router/navigation structure.
+
+Do not create a new route unnecessarily.
+
+Keep the existing brokerage admin management functionality unchanged.
+
+## Important constraints
+
+Do NOT change:
+- authentication
+- RBAC
+- tenant isolation
+- brokerage CRUD
+- brokerage admin CRUD
+- pipeline calculation
+- pipeline summary cards
+- API contracts
+- backend behavior
+- advisor functionality
+- lead functionality
+
+This should be a very small UI-only change.
+
+After implementation:
+- run `npm run build`
+- verify the six Pipeline Summary cards are still visible
+- verify ONLY the brokerage-wise pipeline table is removed
+- verify Brokerage → Manage Admins → Back to brokerages works
+
+## Prompt 48
